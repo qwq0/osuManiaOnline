@@ -224,3 +224,12 @@ export function setTitleText(text)
 {
     titleText = text;
 }
+
+/**
+ * 
+ * @param {number} duration
+ */
+export function setNoteDuration(duration)
+{
+    noteDuration = duration;
+}

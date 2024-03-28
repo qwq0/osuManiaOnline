@@ -5,7 +5,7 @@ import { BlobReader } from "../lib/zip.js";
 import "./canvas.js";
 import "./draw.js";
 import "./decider.js";
-import { correctDrawMatchTime, setDrawMapNotes } from "./draw.js";
+import { correctDrawMatchTime, setDrawMapNotes, setNoteDuration } from "./draw.js";
 import { correctDeciderMatchTime, setDeciderMapNotes } from "./decider.js";
 
 /**
@@ -30,11 +30,16 @@ function getUrlParam(paramName)
 {
     let sid = getUrlParam("sid");
     let bNum = Number(getUrlParam("b-num"));
+    let noteDuration = Number(getUrlParam("note-duration"));
 
     if (sid == undefined)
         throw "Need a param (sid)";
     if (!Number.isInteger(bNum))
         bNum = 0;
+    if (!Number.isInteger(noteDuration))
+        noteDuration = 441;
+
+    setNoteDuration(noteDuration);
 
     let zipFileBlob = await (await fetch(`https://cmcc.sayobot.cn:25225/beatmaps/${sid.slice(0, 3)}/${sid.slice(3)}/novideo`)).blob();
     let zipFileBlobReader = new BlobReader(zipFileBlob);
