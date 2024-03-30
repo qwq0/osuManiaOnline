@@ -87,7 +87,7 @@ setInterval(() =>
 {
     matchTime = performance.now() - matchStartTime;
     refreshDecider();
-}, 20);
+}, 40);
 
 /**
  * @param {number} column
@@ -211,7 +211,7 @@ export function setDeciderMapNotes(notes, mapColumnNumber)
         deciderQueueList[o.column].push(o);
     });
 
-    matchTime = -3000;
+    matchTime = -3 * 1000;
     matchStartTime = performance.now() - matchTime;
 }
 
@@ -222,5 +222,5 @@ export function setDeciderMapNotes(notes, mapColumnNumber)
 export function correctDeciderMatchTime(time)
 {
     matchTime = time;
-    matchStartTime = matchStartTime - time;
+    matchStartTime = performance.now() - matchTime;
 }

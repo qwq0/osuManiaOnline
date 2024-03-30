@@ -44,7 +44,7 @@ function draw()
     context.fillRect(0, 0, width, height);
 
 
-    context.fillStyle = "rgb(15, 15, 15)";
+    context.fillStyle = "rgb(25, 25, 25)";
     context.fillRect(noteOffset, 0, noteWidth * columnNumber, height);
 
     {
@@ -165,7 +165,7 @@ requestAnimationFrame(draw);
 export function setDrawMapNotes(notes, mapColumnNumber)
 {
     mapNotes = notes;
-    matchTime = -3000;
+    matchTime = -3 * 1000;
     columnNumber = mapColumnNumber;
 }
 

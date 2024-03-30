@@ -32,6 +32,7 @@ function getUrlParam(paramName)
     let sid = getUrlParam("sid");
     let bNum = Number(getUrlParam("b-num"));
     let noteDuration = Number(getUrlParam("note-duration"));
+    let userAudioDelay = Number(getUrlParam("audio-delay"));
 
     if (sid == undefined)
         throw "Need a param (sid)";
@@ -39,6 +40,8 @@ function getUrlParam(paramName)
         bNum = 0;
     if (!Number.isInteger(noteDuration))
         noteDuration = 441;
+    if ((!Number.isInteger(userAudioDelay)) || userAudioDelay < -100 || userAudioDelay > 1000)
+        userAudioDelay = 0;
 
     setNoteDuration(noteDuration);
 
@@ -188,11 +191,16 @@ function getUrlParam(paramName)
 
         let audioLeadInTime = Number(beatmapMeta.General.AudioLeadIn || 0);
 
+        let audioContext = new AudioContext();
+        let audioDeviceLatency = audioContext.outputLatency * 1000 + userAudioDelay;
+
+        console.log("audio device latency:", audioDeviceLatency);
+
         setTimeout(async () =>
         {
             await audio.play();
-            correctDrawMatchTime(audioLeadInTime);
-            correctDeciderMatchTime(audioLeadInTime);
+            correctDrawMatchTime(audioLeadInTime - audioDeviceLatency);
+            correctDeciderMatchTime(audioLeadInTime - audioDeviceLatency);
         }, 3000 + audioLeadInTime);
 
         let mapNotes = beatmapHibObjArray.map(o => ({
