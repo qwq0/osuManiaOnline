@@ -11,3 +11,25 @@ canvasElement.width = canvasElement.clientWidth;
 canvasElement.height = canvasElement.clientHeight;
 
 export let canvasContext = canvasElement.getContext("2d");
+
+let oldWidth = 0;
+let oldHeight = 0;
+function resizeCanvas()
+{
+    let width = canvasElement.clientWidth;
+    let height = canvasElement.clientHeight;
+    if (width != oldWidth || height != oldHeight)
+    {
+        canvasElement.width = width;
+        canvasElement.height = height;
+
+        oldWidth = width;
+        oldHeight = height;
+    }
+}
+
+window.addEventListener("resize", resizeCanvas);
+setTimeout(o =>
+{
+    resizeCanvas();
+}, 3 * 1000);

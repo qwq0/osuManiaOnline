@@ -1,11 +1,6 @@
 import { setTitleText, showKeyState, showKeyVisualEffect } from "./draw.js";
 
-let keyMap = {
-    "d": 0,
-    "f": 1,
-    "j": 2,
-    "k": 3,
-};
+
 
 /** @type {Array<boolean>} */
 let keyState = [];
@@ -94,10 +89,12 @@ setInterval(() =>
     refreshDecider();
 }, 20);
 
-window.addEventListener("keydown", e =>
+/**
+ * @param {number} column
+ */
+export function keydown(column)
 {
-    let column = keyMap[e.key];
-    if (column != undefined && !keyState[column])
+    if (!keyState[column])
     {
         showKeyState(column, true);
         keyState[column] = true;
@@ -151,12 +148,14 @@ window.addEventListener("keydown", e =>
             refreshScoreDisplay();
         }
     }
-});
+}
 
-window.addEventListener("keyup", e =>
+/**
+ * @param {number} column
+ */
+export function keyup(column)
 {
-    let column = keyMap[e.key];
-    if (column != undefined && keyState[column])
+    if (keyState[column])
     {
         showKeyState(column, false);
         keyState[column] = false;
@@ -189,7 +188,7 @@ window.addEventListener("keyup", e =>
         }
         refreshScoreDisplay();
     }
-});
+}
 
 /**
  * 

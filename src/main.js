@@ -7,6 +7,7 @@ import "./draw.js";
 import "./decider.js";
 import { correctDrawMatchTime, setDrawMapNotes, setNoteDuration } from "./draw.js";
 import { correctDeciderMatchTime, setDeciderMapNotes } from "./decider.js";
+import { setInputColumnNumber } from "./input.js";
 
 /**
  * 
@@ -201,6 +202,7 @@ function getUrlParam(paramName)
             endTime: (o.type == "hold" ? o.endTime : o.time)
         }));
 
+        setInputColumnNumber(beatmapColumnNumber);
         setDrawMapNotes(mapNotes, beatmapColumnNumber);
         setDeciderMapNotes(mapNotes, beatmapColumnNumber);
     }
