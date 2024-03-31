@@ -1,17 +1,15 @@
-import { setTitleText, showKeyState, showKeyVisualEffect } from "./draw.js";
+import { setTitleText, showDecisionText, showKeyState, showKeyVisualEffect } from "./draw.js";
+import { state } from "./state.js";
 
 
 
 /** @type {Array<boolean>} */
 let keyState = [];
 
-let matchStartTime = performance.now();
 let matchTime = 0;
 
-let columnNumber = 0;
-
 /**
- * @type {Array<Array<{ column: number, time: number, hold: boolean, endTime: number }>>}
+ * @type {Array<Array<{ time: number, hold: boolean, endTime: number, index: number }>>}
  */
 let deciderQueueList = [];
 /**
@@ -57,7 +55,7 @@ let holdEndGreatScore = 400;
 
 function refreshDecider()
 {
-    for (let column = 0; column < columnNumber; column++)
+    for (let column = 0; column < state.columnNumber; column++)
     {
         for (let i = deciderPointerList[column]; i < deciderQueueList[column].length; i++)
         {
@@ -69,8 +67,21 @@ function refreshDecider()
             else
             {
                 showKeyVisualEffect(column, { r: 220, g: 60, b: 60 });
+                showDecisionText("Miss", { r: 220, g: 60, b: 60 });
                 deciderPointerList[column] = i + 1;
                 deciderState.totalScore += perfectScore;
+                deciderState.combo = 0;
+            }
+        }
+
+        let holdEndTime = deciderHoldEndTimeList[column];
+        if (holdEndTime != undefined)
+        {
+            if (holdEndTime + holdEndGreatTime < matchTime)
+            {
+                showKeyVisualEffect(column, { r: 220, g: 60, b: 60 });
+                showDecisionText("Miss", { r: 220, g: 60, b: 60 });
+                deciderState.totalScore += holdEndPerfectScore;
                 deciderState.combo = 0;
             }
         }
@@ -85,7 +96,7 @@ function refreshScoreDisplay()
 
 setInterval(() =>
 {
-    matchTime = performance.now() - matchStartTime;
+    matchTime = performance.now() - state.matchStartTime;
     refreshDecider();
 }, 40);
 
@@ -99,7 +110,7 @@ export function keydown(column)
         showKeyState(column, true);
         keyState[column] = true;
 
-        matchTime = performance.now() - matchStartTime;
+        matchTime = performance.now() - state.matchStartTime;
         refreshDecider();
 
         let nowNote = deciderQueueList[column][deciderPointerList[column]];
@@ -108,9 +119,11 @@ export function keydown(column)
             if (Math.abs(nowNote.time - matchTime) <= perfectTime)
             { // perfect
                 showKeyVisualEffect(column, { r: 220, g: 220, b: 60 });
+                showDecisionText("Perfect", { r: 220, g: 220, b: 60 });
+                deciderState.score += perfectScore;
+
                 deciderPointerList[column]++;
                 deciderState.totalScore += perfectScore;
-                deciderState.score += perfectScore;
                 deciderState.combo++;
 
                 if (nowNote.hold)
@@ -119,9 +132,11 @@ export function keydown(column)
             else if (Math.abs(nowNote.time - matchTime) <= greatTime)
             { // great
                 showKeyVisualEffect(column, { r: 220, g: 160, b: 160 });
+                showDecisionText("Great", { r: 220, g: 160, b: 160 });
+                deciderState.score += greatScore;
+
                 deciderPointerList[column]++;
                 deciderState.totalScore += perfectScore;
-                deciderState.score += greatScore;
                 deciderState.combo++;
 
                 if (nowNote.hold)
@@ -130,9 +145,11 @@ export function keydown(column)
             else if (Math.abs(nowNote.time - matchTime) <= goodTime)
             { // good
                 showKeyVisualEffect(column, { r: 60, g: 220, b: 60 });
+                showDecisionText("Good", { r: 60, g: 220, b: 60 });
+                deciderState.score += goodScore;
+
                 deciderPointerList[column]++;
                 deciderState.totalScore += perfectScore;
-                deciderState.score += goodScore;
                 deciderState.combo++;
 
                 if (nowNote.hold)
@@ -141,11 +158,15 @@ export function keydown(column)
             else
             { // miss
                 showKeyVisualEffect(column, { r: 220, g: 60, b: 60 });
+                showDecisionText("Miss", { r: 220, g: 60, b: 60 });
                 deciderPointerList[column]++;
                 deciderState.totalScore += perfectScore;
                 deciderState.combo = 0;
             }
             refreshScoreDisplay();
+
+            if (!nowNote.hold)
+                state.mapNotes[nowNote.index].judged = true;
         }
     }
 }
@@ -160,7 +181,7 @@ export function keyup(column)
         showKeyState(column, false);
         keyState[column] = false;
 
-        matchTime = performance.now() - matchStartTime;
+        matchTime = performance.now() - state.matchStartTime;
         refreshDecider();
 
         let holdEndTime = deciderHoldEndTimeList[column];
@@ -192,35 +213,23 @@ export function keyup(column)
 
 /**
  * 
- * @param {Array<{ column: number, time: number, hold: boolean, endTime: number }>} notes
- * @param {number} mapColumnNumber
  */
-export function setDeciderMapNotes(notes, mapColumnNumber)
+export function refreshDeciderMapNotes()
 {
-    columnNumber = mapColumnNumber;
-
     deciderQueueList = [];
     deciderPointerList = [];
-    for (let i = 0; i < mapColumnNumber; i++)
+    for (let i = 0; i < state.columnNumber; i++)
     {
         deciderQueueList[i] = [];
         deciderPointerList[i] = 0;
     }
-    notes.forEach(o =>
+    state.mapNotes.forEach((o, index) =>
     {
-        deciderQueueList[o.column].push(o);
+        deciderQueueList[o.column].push({
+            time: o.time,
+            endTime: o.endTime,
+            hold: o.hold,
+            index: index
+        });
     });
-
-    matchTime = -3 * 1000;
-    matchStartTime = performance.now() - matchTime;
-}
-
-/**
- * 
- * @param {number} time
- */
-export function correctDeciderMatchTime(time)
-{
-    matchTime = time;
-    matchStartTime = performance.now() - matchTime;
 }

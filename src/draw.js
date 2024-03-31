@@ -1,15 +1,12 @@
 import { canvasContext, canvasElement } from "./canvas.js";
+import { state } from "./state.js";
 
 
-let matchTime = 0;
 /**
- * @type {Set<{ column: number, time: number, hold: boolean, endTime: number }>}
+ * @type {Set<{ column: number, time: number, hold: boolean, endTime: number, judged: boolean, holding: boolean }>}
  */
 let sceneNotes = new Set();
-/**
- * @type {Array<{ column: number, time: number, hold: boolean, endTime: number }>}
- */
-let mapNotes = [];
+
 let mapNotesPointer = 0;
 let noteDuration = 441;
 
@@ -18,10 +15,18 @@ let columnNumber = 4;
 /** @type {Array<boolean>} */
 let keyState = [];
 
-/** @type {Array<{ fillStyle: string | CanvasGradient, endTime: number, ratio: number }>} */
+/** @type {Array<{ color: { r: number, g: number, b: number }, endTime: number, ratio: number }>} */
 let keyVisualEffect = [];
 
 let titleText = "";
+
+let decisionText = {
+    text: "",
+    color: { r: 255, g: 255, b: 255 },
+    duration: 200,
+    midTime: 0,
+    endTime: 0
+};
 
 let lastTime = performance.now();
 function draw()
@@ -29,62 +34,72 @@ function draw()
     let context = canvasContext;
 
     let now = performance.now();
-    let timeStep = now - lastTime;
 
-    matchTime += timeStep;
+    let matchTime = now - state.matchStartTime;
 
-    let width = canvasElement.width;
-    let height = canvasElement.height;
+    let canvasWidth = canvasElement.width;
+    let canvasHeight = canvasElement.height;
 
-    let noteWidth = (width >= height ? width / 15 : width / columnNumber);
-    let noteHeight = Math.min(width, height) / 55;
-    let noteOffset = (width - noteWidth * columnNumber) / 2;
+    let noteWidth = (canvasWidth >= canvasHeight ? canvasWidth / 15 : canvasWidth / columnNumber);
+    let noteHeight = Math.min(canvasWidth, canvasHeight) / 55;
+    let noteOffset = (canvasWidth - noteWidth * columnNumber) / 2;
 
     context.fillStyle = "rgb(0, 0, 0)";
-    context.fillRect(0, 0, width, height);
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
 
 
     context.fillStyle = "rgb(25, 25, 25)";
-    context.fillRect(noteOffset, 0, noteWidth * columnNumber, height);
+    context.fillRect(noteOffset, 0, noteWidth * columnNumber, canvasHeight);
 
     {
         context.save();
 
+        let bottomFillHeight = canvasHeight * 0.13;
+        let trackHeight = canvasHeight - bottomFillHeight;
+        let bottomFillDuration = noteDuration * trackHeight / bottomFillHeight;
+
+        // 移除离开场景的物件
         sceneNotes.forEach(o =>
         {
-            if (o.endTime < matchTime)
+            if (o.endTime + bottomFillDuration < matchTime)
                 sceneNotes.delete(o);
         });
 
-        for (let i = mapNotesPointer, length = mapNotes.length; i < length; i++)
+        // 将进入场景的物件添加到场景
+        for (let i = mapNotesPointer, length = state.mapNotes.length; i < length; i++)
         {
-            let now = mapNotes[i];
+            let now = state.mapNotes[i];
             if (now.time <= matchTime + noteDuration)
             {
                 sceneNotes.add(now);
+                mapNotesPointer = i + 1;
             }
             else
             {
-                mapNotesPointer = i;
                 break;
             }
         }
 
+        // 绘制物件
         if (sceneNotes.size > 0)
         {
             context.fillStyle = "rgb(255, 255, 255)";
             sceneNotes.forEach(o =>
             {
+                if (o.judged)
+                    return;
+
                 let progress = 1 - ((o.time - matchTime) / noteDuration);
                 let noteX = noteOffset + o.column * noteWidth + 1;
-                let noteY = progress * height - noteHeight;
+                let noteY = progress * trackHeight - noteHeight;
                 let noteW = noteWidth - 2;
+
                 if (o.hold)
                 {
                     context.fillStyle = "rgb(170, 212, 215)";
 
                     let holdProgressDelta = (o.endTime - o.time) / noteDuration;
-                    let holdLength = holdProgressDelta * height;
+                    let holdLength = holdProgressDelta * canvasHeight;
 
                     context.fillRect(noteX, noteY - holdLength, noteW, noteHeight + holdLength);
 
@@ -103,29 +118,38 @@ function draw()
         }
         else
         {
-            let nextNode = mapNotes[mapNotesPointer];
+            let nextNode = state.mapNotes[mapNotesPointer];
             if (nextNode && nextNode.time > matchTime + 5000)
             {
                 context.textBaseline = "middle";
                 context.textAlign = "center";
                 context.fillStyle = "rgb(255, 255, 255)";
                 context.font = "50px sans-serif";
-                context.fillText(`${Math.floor((nextNode.time - matchTime - 4000) / 1000)}`, width / 2, height / 2);
+                context.fillText(`${Math.floor((nextNode.time - matchTime - 4000) / 1000)}`, canvasWidth / 2, canvasHeight / 2);
             }
         }
 
+        // 判定线与打击特效
         for (let i = 0; i < columnNumber; i++)
         {
             let columnX = noteOffset + i * noteWidth;
 
+            // 打击特效
             if (keyVisualEffect[i])
             {
                 let effect = keyVisualEffect[i];
-                if (effect.endTime - matchTime > 0)
+                if (effect.endTime - now > 0)
                 {
-                    context.fillStyle = effect.fillStyle;
-                    context.globalAlpha = (effect.endTime - matchTime) * effect.ratio;
-                    context.fillRect(columnX, height - height * 0.2, noteWidth, height * 0.2);
+                    let effectHeight = canvasHeight * 0.13;
+
+                    let colorKey = `${effect.color.r},${effect.color.g},${effect.color.b}`;
+                    let gradient = canvasContext.createLinearGradient(0, trackHeight - effectHeight, 0, trackHeight);
+                    gradient.addColorStop(0, `rgba(${colorKey}, 0.01)`);
+                    gradient.addColorStop(1, `rgba(${colorKey}, 1)`);
+
+                    context.fillStyle = gradient;
+                    context.globalAlpha = (effect.endTime - now) * effect.ratio;
+                    context.fillRect(columnX, trackHeight - effectHeight - noteHeight / 2, noteWidth, effectHeight);
                     context.globalAlpha = 1;
                 }
                 else
@@ -134,18 +158,37 @@ function draw()
                 }
             }
 
+            // 判定线
             let lineWidth = (keyState[i] ? 7 : 2);
-            context.fillStyle = "rgb(200, 200, 200)";
-            context.fillRect(columnX, height - noteHeight - lineWidth / 2, noteWidth, lineWidth);
+            context.fillStyle = (keyState[i] ? "rgb(230, 230, 230)" : "rgb(200, 200, 200)");
+            context.fillRect(columnX, trackHeight - noteHeight / 2 - lineWidth / 2, noteWidth, lineWidth);
         }
 
+        // 判定文本
+        if (decisionText.endTime > now)
+        {
+            context.textBaseline = "middle";
+            context.textAlign = "center";
+            context.fillStyle = `rgb(${decisionText.color.r}, ${decisionText.color.g}, ${decisionText.color.b})`;
+            let ratio = (
+                decisionText.midTime > now ?
+                    Math.pow(1 - ((decisionText.midTime - now) / decisionText.duration), 0.25) :
+                    Math.pow((decisionText.endTime - now) / decisionText.duration, 0.25)
+            );
+            context.font = `${((0.4 + ratio * 0.6) * 42).toFixed(1)}px sans-serif`;
+            context.globalAlpha = ratio;
+            context.fillText(decisionText.text, canvasWidth / 2, canvasHeight * 0.3);
+            context.globalAlpha = 1;
+        }
+
+        // 顶部信息文本
         if (titleText)
         {
             context.textBaseline = "top";
             context.textAlign = "center";
             context.fillStyle = "rgb(255, 255, 255)";
             context.font = "30px sans-serif";
-            context.fillText(titleText, width / 2, height * 0.03);
+            context.fillText(titleText, canvasWidth / 2, canvasHeight * 0.03);
         }
 
         context.restore();
@@ -157,26 +200,6 @@ function draw()
 
 requestAnimationFrame(draw);
 
-/**
- * 
- * @param {typeof mapNotes} notes
- * @param {number} mapColumnNumber
- */
-export function setDrawMapNotes(notes, mapColumnNumber)
-{
-    mapNotes = notes;
-    matchTime = -3 * 1000;
-    columnNumber = mapColumnNumber;
-}
-
-/**
- * 
- * @param {number} time
- */
-export function correctDrawMatchTime(time)
-{
-    matchTime = time;
-}
 
 /**
  * 
@@ -189,30 +212,30 @@ export function showKeyState(column, pressing)
 }
 
 /**
- * @type {Object<string, CanvasGradient>}
- */
-let gradientCache = {};
-/**
  * @param {number} column
  * @param {{ r: number, g: number, b: number }} color
  */
 export function showKeyVisualEffect(column, color)
 {
-    let colorKey = `${color.r},${color.g},${color.b}`;
-
-    let gradient = gradientCache[colorKey];
-    if (!gradient)
-    {
-        gradient = canvasContext.createLinearGradient(0, canvasElement.height - canvasElement.height * 0.2, 0, canvasElement.height);
-        gradient.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, 0.01)`);
-        gradient.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 1)`);
-        gradientCache[colorKey] = gradient;
-    }
-
     keyVisualEffect[column] = {
-        fillStyle: gradient,
-        endTime: matchTime + 300,
-        ratio: 1 / 350
+        color: color,
+        endTime: lastTime + 200,
+        ratio: 1 / 250
+    };
+}
+
+/**
+ * @param {string} text
+ * @param {{ r: number, g: number, b: number }} color
+ */
+export function showDecisionText(text, color)
+{
+    decisionText = {
+        text: text,
+        color: color,
+        duration: 120,
+        midTime: lastTime + 120,
+        endTime: lastTime + 120 * 2
     };
 }
 

@@ -1,10 +1,7 @@
 import { canvasElement } from "./canvas.js";
 import { keydown, keyup } from "./decider.js";
+import { state } from "./state.js";
 
-/**
- * @type {Object<string, number>}
- */
-let keyMap = {};
 
 let keyMapList = [
     {}, // 0k
@@ -89,14 +86,14 @@ let columnNumber = 0;
 
 window.addEventListener("keydown", e =>
 {
-    let column = keyMap[e.key];
+    let column = keyMapList[state.columnNumber][e.key];
     if (column != undefined)
         keydown(column);
 });
 
 window.addEventListener("keyup", e =>
 {
-    let column = keyMap[e.key];
+    let column = keyMapList[state.columnNumber][e.key];
     if (column != undefined)
         keyup(column);
 });
@@ -106,10 +103,10 @@ window.addEventListener("keyup", e =>
  */
 function getTouch(touchlist)
 {
-    if (columnNumber == 0)
+    if (state.columnNumber == 0)
         return;
     let keyState = [];
-    let keyWidth = canvasElement.clientWidth / columnNumber;
+    let keyWidth = canvasElement.clientWidth / state.columnNumber;
     Array.from(touchlist).forEach(o =>
     {
         let x = o.clientX;
@@ -118,7 +115,7 @@ function getTouch(touchlist)
         keyState[column] = true;
     });
 
-    for (let i = 0; i < columnNumber; i++)
+    for (let i = 0; i < state.columnNumber; i++)
     {
         if (keyState[i])
             keydown(i);
@@ -159,13 +156,3 @@ window.addEventListener("touchcancel", e =>
     capture: true,
     passive: false
 });
-
-
-/**
- * @param {number} column
- */
-export function setInputColumnNumber(column)
-{
-    columnNumber = column;
-    keyMap = keyMapList[column] || {};
-}
