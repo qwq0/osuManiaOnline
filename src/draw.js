@@ -10,7 +10,6 @@ let sceneNotes = new Set();
 let mapNotesPointer = 0;
 let noteDuration = 441;
 
-let columnNumber = 4;
 
 /** @type {Array<boolean>} */
 let keyState = [];
@@ -40,23 +39,23 @@ function draw()
     let canvasWidth = canvasElement.width;
     let canvasHeight = canvasElement.height;
 
-    let noteWidth = (canvasWidth >= canvasHeight ? canvasWidth / 15 : canvasWidth / columnNumber);
+    let noteWidth = (canvasWidth >= canvasHeight ? canvasWidth / 15 : canvasWidth / state.columnNumber);
     let noteHeight = Math.min(canvasWidth, canvasHeight) / 55;
-    let noteOffset = (canvasWidth - noteWidth * columnNumber) / 2;
+    let noteOffset = (canvasWidth - noteWidth * state.columnNumber) / 2;
 
     context.fillStyle = "rgb(0, 0, 0)";
     context.fillRect(0, 0, canvasWidth, canvasHeight);
 
 
     context.fillStyle = "rgb(25, 25, 25)";
-    context.fillRect(noteOffset, 0, noteWidth * columnNumber, canvasHeight);
+    context.fillRect(noteOffset, 0, noteWidth * state.columnNumber, canvasHeight);
 
     {
         context.save();
 
         let bottomFillHeight = canvasHeight * 0.13;
         let trackHeight = canvasHeight - bottomFillHeight;
-        let bottomFillDuration = noteDuration * trackHeight / bottomFillHeight;
+        let bottomFillDuration = noteDuration * bottomFillHeight / trackHeight;
 
         // 移除离开场景的物件
         sceneNotes.forEach(o =>
@@ -91,26 +90,33 @@ function draw()
 
                 let progress = 1 - ((o.time - matchTime) / noteDuration);
                 let noteX = noteOffset + o.column * noteWidth + 1;
-                let noteY = progress * trackHeight - noteHeight;
                 let noteW = noteWidth - 2;
 
                 if (o.hold)
                 {
-                    context.fillStyle = "rgb(170, 212, 215)";
+                    let holdStartY = (o.holding ? trackHeight : progress * trackHeight) - noteHeight;
 
-                    let holdProgressDelta = (o.endTime - o.time) / noteDuration;
-                    let holdLength = holdProgressDelta * canvasHeight;
+                    let holdEndProgress = 1 - ((o.endTime - matchTime) / noteDuration);
+                    let holdEndY = holdEndProgress * trackHeight - noteHeight;
 
-                    context.fillRect(noteX, noteY - holdLength, noteW, noteHeight + holdLength);
+                    let holdLength = holdStartY - holdEndY;
 
-                    context.fillStyle = "rgb(210, 170, 170)";
-                    context.fillRect(noteX, noteY - holdLength, noteW, noteHeight);
+                    if (holdLength >= 0)
+                    {
+                        context.fillStyle = "rgb(170, 212, 215)";
+                        context.fillRect(noteX, holdEndY, noteW, noteHeight + holdLength);
 
-                    context.fillStyle = "rgb(255, 255, 255)";
-                    context.fillRect(noteX, noteY, noteW, noteHeight);
+                        context.fillStyle = "rgb(255, 255, 255)";
+                        context.fillRect(noteX, holdStartY, noteW, noteHeight);
+
+                        context.fillStyle = "rgb(210, 170, 170)";
+                        context.fillRect(noteX, holdEndY, noteW, noteHeight);
+                    }
                 }
                 else
                 {
+                    let noteY = progress * trackHeight - noteHeight;
+
                     context.fillStyle = "rgb(255, 255, 255)";
                     context.fillRect(noteX, noteY, noteW, noteHeight);
                 }
@@ -130,7 +136,7 @@ function draw()
         }
 
         // 判定线与打击特效
-        for (let i = 0; i < columnNumber; i++)
+        for (let i = 0; i < state.columnNumber; i++)
         {
             let columnX = noteOffset + i * noteWidth;
 

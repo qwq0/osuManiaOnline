@@ -83,9 +83,12 @@ let keyMapList = [
 ];
 
 let columnNumber = 0;
+let enableInput = false;
 
 window.addEventListener("keydown", e =>
 {
+    if (!enableInput)
+        return;
     let column = keyMapList[state.columnNumber][e.key];
     if (column != undefined)
         keydown(column);
@@ -93,6 +96,8 @@ window.addEventListener("keydown", e =>
 
 window.addEventListener("keyup", e =>
 {
+    if (!enableInput)
+        return;
     let column = keyMapList[state.columnNumber][e.key];
     if (column != undefined)
         keyup(column);
@@ -126,6 +131,8 @@ function getTouch(touchlist)
 
 window.addEventListener("touchstart", e =>
 {
+    if (!enableInput)
+        return;
     e.preventDefault();
     getTouch(e.touches);
 }, {
@@ -134,6 +141,8 @@ window.addEventListener("touchstart", e =>
 });
 window.addEventListener("touchmove", e =>
 {
+    if (!enableInput)
+        return;
     e.preventDefault();
     getTouch(e.touches);
 }, {
@@ -142,6 +151,8 @@ window.addEventListener("touchmove", e =>
 });
 window.addEventListener("touchend", e =>
 {
+    if (!enableInput)
+        return;
     e.preventDefault();
     getTouch(e.touches);
 }, {
@@ -150,9 +161,58 @@ window.addEventListener("touchend", e =>
 });
 window.addEventListener("touchcancel", e =>
 {
+    if (!enableInput)
+        return;
     e.preventDefault();
     getTouch(e.touches);
 }, {
     capture: true,
     passive: false
 });
+
+
+let lastMouseMoveTime = performance.now();
+
+let hidedCursor = false;
+function hideCursor()
+{
+    let needHideCursor = performance.now() - lastMouseMoveTime > 6 * 1000;
+
+    if (needHideCursor)
+    {
+        if (!hidedCursor)
+        {
+            document.body.style.cursor = "none";
+            hidedCursor = true;
+        }
+    }
+    else
+    {
+        if (hidedCursor)
+        {
+            document.body.style.cursor = "auto";
+            hidedCursor = false;
+        }
+    }
+}
+function cursorMove()
+{
+    lastMouseMoveTime = performance.now();
+    if (hidedCursor)
+    {
+        document.body.style.cursor = "auto";
+        hidedCursor = false;
+    }
+}
+setInterval(hideCursor, 3 * 1000);
+window.addEventListener("mousemove", e => { cursorMove(); });
+window.addEventListener("mousedown", e => { cursorMove(); });
+window.addEventListener("mouseup", e => { cursorMove(); });
+
+/**
+ * @param {boolean} enable
+ */
+export function setInputEnable(enable)
+{
+    enableInput = enable;
+}
