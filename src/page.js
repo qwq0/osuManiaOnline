@@ -20,6 +20,7 @@ import { NAttr } from "../lib/qwqframe.js";
  */
 export async function showStartPage(beatmapFileName)
 {
+    setInputEnable(false);
     state.exitButton.enable = false;
 
 
@@ -350,6 +351,10 @@ export async function showOptionPage()
      * @type {NElement<HTMLSelectElement>}
      */
     let speedSelect = null;
+    /**
+     * @type {NElement<HTMLInputElement>}
+     */
+    let audioLatencyInput = null;
 
     let ui = NList.getElement([
         styles({
@@ -406,6 +411,24 @@ export async function showOptionPage()
             ],
 
             [
+                "音频偏移: ",
+                [
+                    new NTagName("input"),
+                    new NAttr("type", "number"),
+
+                    new NAttr("max", "1000"),
+                    new NAttr("min", "-1000"),
+                    new NAttr("value", "0"),
+
+                    styles({
+                        padding: "5px",
+                        maxWidth: "300px",
+                    }),
+                    ele => { audioLatencyInput = ele; }
+                ]
+            ],
+
+            [
                 styles({
                     padding: "8px",
                     paddingLeft: "40px",
@@ -448,6 +471,12 @@ export async function showOptionPage()
 
                     let noteDuration = Number(speedSelect.element.value);
                     setNoteDuration(noteDuration);
+
+                    let audioLatency = Number(audioLatencyInput.element.value);
+                    if (!Number.isFinite(audioLatency))
+                        audioLatency = 0;
+                    audioLatency = Math.max(-1000, Math.min(1000, audioLatency));
+                    setUserAudioLatency(audioLatency);
                 })
             ]
         ]

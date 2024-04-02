@@ -272,7 +272,7 @@ export async function playBeatmap(beatmapFileName)
             await audio.play();
             correctMatchTime(audioLeadInTime - audioLatency);
         }
-    }, 3000 + audioLeadInTime);
+    }, 3000 + audioLeadInTime - audioLatency);
 
     let mapNotes = beatmapHibObjArray.map(o => ({
         column: o.column,
