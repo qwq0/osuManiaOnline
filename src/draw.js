@@ -3,11 +3,10 @@ import { state } from "./state.js";
 
 
 /**
- * @type {Set<{ column: number, time: number, hold: boolean, endTime: number, judged: boolean, holding: boolean }>}
+ * @type {typeof state.sceneNotes}
  */
-let sceneNotes = new Set();
+let sceneNotes = state.sceneNotes;
 
-let mapNotesPointer = 0;
 let noteDuration = 441;
 
 
@@ -16,8 +15,6 @@ let keyState = [];
 
 /** @type {Array<{ color: { r: number, g: number, b: number }, endTime: number, ratio: number }>} */
 let keyVisualEffect = [];
-
-let titleText = "";
 
 let decisionText = {
     text: "",
@@ -39,7 +36,11 @@ function draw()
     let canvasWidth = canvasElement.width;
     let canvasHeight = canvasElement.height;
 
-    let noteWidth = (canvasWidth >= canvasHeight ? canvasWidth / 15 : canvasWidth / state.columnNumber);
+    if (state.columnNumber > 0)
+        state.noteWidthRatio = (canvasWidth >= canvasHeight ? 1 / 15 : 1 / state.columnNumber);
+    else
+        state.noteWidthRatio = 1;
+    let noteWidth = canvasWidth * state.noteWidthRatio;
     let noteHeight = Math.min(canvasWidth, canvasHeight) / 55;
     let noteOffset = (canvasWidth - noteWidth * state.columnNumber) / 2;
 
@@ -55,7 +56,7 @@ function draw()
 
         let bottomFillHeight = canvasHeight * 0.13;
         let trackHeight = canvasHeight - bottomFillHeight;
-        let bottomFillDuration = noteDuration * bottomFillHeight / trackHeight;
+        let bottomFillDuration = noteDuration * (bottomFillHeight + noteHeight) / trackHeight;
 
         // 移除离开场景的物件
         sceneNotes.forEach(o =>
@@ -65,13 +66,13 @@ function draw()
         });
 
         // 将进入场景的物件添加到场景
-        for (let i = mapNotesPointer, length = state.mapNotes.length; i < length; i++)
+        for (let i = state.mapNotesPointer, length = state.mapNotes.length; i < length; i++)
         {
             let now = state.mapNotes[i];
             if (now.time <= matchTime + noteDuration)
             {
                 sceneNotes.add(now);
-                mapNotesPointer = i + 1;
+                state.mapNotesPointer = i + 1;
             }
             else
             {
@@ -124,7 +125,7 @@ function draw()
         }
         else
         {
-            let nextNode = state.mapNotes[mapNotesPointer];
+            let nextNode = state.mapNotes[state.mapNotesPointer];
             if (nextNode && nextNode.time > matchTime + 5000)
             {
                 context.textBaseline = "middle";
@@ -188,13 +189,51 @@ function draw()
         }
 
         // 顶部信息文本
-        if (titleText)
+        if (state.titleText)
         {
             context.textBaseline = "top";
             context.textAlign = "center";
             context.fillStyle = "rgb(255, 255, 255)";
             context.font = "30px sans-serif";
-            context.fillText(titleText, canvasWidth / 2, canvasHeight * 0.03);
+            context.fillText(state.titleText, canvasWidth / 2, canvasHeight * 0.03);
+        }
+
+        // 退出按钮
+        if (state.exitButton.enable && state.exitButton.alpha > 0)
+        {
+            context.save();
+
+            let exitButton = state.exitButton;
+
+            context.scale(state.canvasRatio, state.canvasRatio);
+
+            context.beginPath();
+            context.arc(exitButton.x, exitButton.y, exitButton.radius, 0, 2 * Math.PI);
+            context.closePath();
+            context.globalAlpha = exitButton.alpha;
+            context.fillStyle = "rgb(80, 80, 80)";
+            context.fill();
+            context.globalAlpha = 1;
+
+            if (exitButton.activeStartTime != -1)
+            {
+                let progress = Math.min(1, (now - exitButton.activeStartTime) / exitButton.activeDuration);
+                context.beginPath();
+                context.moveTo(exitButton.x, exitButton.y);
+                // context.lineTo(exitButton.x, exitButton.y - exitButton.radius);
+                context.arc(exitButton.x, exitButton.y, exitButton.radius, -Math.PI * 0.5, -Math.PI * (0.5 + 2 * progress), true);
+                context.closePath();
+                context.fillStyle = "rgb(180, 180, 180)";
+                context.fill();
+            }
+
+            context.textBaseline = "middle";
+            context.textAlign = "center";
+            context.fillStyle = "rgb(255, 255, 255)";
+            context.font = `${(exitButton.radius * 0.6).toFixed(1)}px sans-serif`;
+            context.fillText(`\xd7`, exitButton.x, exitButton.y);
+
+            context.restore();
         }
 
         context.restore();
@@ -212,7 +251,7 @@ requestAnimationFrame(draw);
  * @param {number} column
  * @param {boolean} pressing
  */
-export function showKeyState(column, pressing)
+export function setKeyState(column, pressing)
 {
     keyState[column] = pressing;
 }
@@ -243,15 +282,6 @@ export function showDecisionText(text, color)
         midTime: lastTime + 120,
         endTime: lastTime + 120 * 2
     };
-}
-
-/**
- * 
- * @param {string} text
- */
-export function setTitleText(text)
-{
-    titleText = text;
 }
 
 /**

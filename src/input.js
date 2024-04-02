@@ -1,6 +1,7 @@
 import { canvasElement } from "./canvas.js";
-import { keydown, keyup } from "./decider.js";
-import { state } from "./state.js";
+import { abortDecider, keydown, keyup, refreshDeciderMapNotes } from "./decider.js";
+import { showStartPage } from "./page.js";
+import { clearState, state } from "./state.js";
 
 
 let keyMapList = [
@@ -85,6 +86,26 @@ let keyMapList = [
 let columnNumber = 0;
 let enableInput = false;
 
+let exitDown = false;
+function exitButtonDown()
+{
+    if (!exitDown)
+    {
+        exitDown = true;
+        state.exitButton.activeStartTime = performance.now();
+        state.exitButton.alpha = 1;
+    }
+}
+function exitButtonUp()
+{
+    if (exitDown)
+    {
+        exitDown = false;
+        state.exitButton.activeStartTime = -1;
+        state.exitButton.alpha = 0;
+    }
+}
+
 window.addEventListener("keydown", e =>
 {
     if (!enableInput)
@@ -92,8 +113,9 @@ window.addEventListener("keydown", e =>
     let column = keyMapList[state.columnNumber][e.key];
     if (column != undefined)
         keydown(column);
+    else if (e.key == "Escape" && !exitDown)
+        exitButtonDown();
 });
-
 window.addEventListener("keyup", e =>
 {
     if (!enableInput)
@@ -101,6 +123,8 @@ window.addEventListener("keyup", e =>
     let column = keyMapList[state.columnNumber][e.key];
     if (column != undefined)
         keyup(column);
+    else if (e.key == "Escape")
+        exitButtonUp();
 });
 
 /**
@@ -111,13 +135,23 @@ function getTouch(touchlist)
     if (state.columnNumber == 0)
         return;
     let keyState = [];
-    let keyWidth = canvasElement.clientWidth / state.columnNumber;
+    let keyWidth = canvasElement.clientWidth * state.noteWidthRatio;
+    let keyOffset = canvasElement.clientWidth * (1 - state.noteWidthRatio * state.columnNumber) / 2;
+    let exitTouching = false;
     Array.from(touchlist).forEach(o =>
     {
         let x = o.clientX;
         let y = o.clientY;
-        let column = Math.floor(x / keyWidth);
-        keyState[column] = true;
+
+        if (Math.hypot(x - state.exitButton.x, y - state.exitButton.y) <= state.exitButton.radius)
+        {
+            exitTouching = true;
+        }
+        else
+        {
+            let column = Math.floor((x - keyOffset) / keyWidth);
+            keyState[column] = true;
+        }
     });
 
     for (let i = 0; i < state.columnNumber; i++)
@@ -127,6 +161,11 @@ function getTouch(touchlist)
         else
             keyup(i);
     }
+
+    if (exitTouching)
+        exitButtonDown();
+    else
+        exitButtonUp();
 }
 
 window.addEventListener("touchstart", e =>
@@ -184,6 +223,7 @@ function hideCursor()
         {
             document.body.style.cursor = "none";
             hidedCursor = true;
+            state.exitButton.alpha = 0;
         }
     }
     else
@@ -205,9 +245,58 @@ function cursorMove()
     }
 }
 setInterval(hideCursor, 3 * 1000);
-window.addEventListener("mousemove", e => { cursorMove(); });
-window.addEventListener("mousedown", e => { cursorMove(); });
-window.addEventListener("mouseup", e => { cursorMove(); });
+window.addEventListener("mousemove", e =>
+{
+    cursorMove();
+
+    if (state.exitButton.activeStartTime == -1)
+    {
+        let toExitButtonDistance = Math.max(0, Math.hypot(e.clientX - state.exitButton.x, e.clientY - state.exitButton.y) - state.exitButton.radius);
+        if (toExitButtonDistance < 200)
+        {
+            state.exitButton.alpha = (1 - (toExitButtonDistance / 200)) * 0.5;
+        }
+        else
+        {
+            state.exitButton.alpha = 0;
+        }
+    }
+});
+window.addEventListener("mousedown", e =>
+{
+    if (!enableInput)
+        return;
+    cursorMove();
+
+    if (Math.hypot(e.clientX - state.exitButton.x, e.clientY - state.exitButton.y) <= state.exitButton.radius)
+        exitButtonDown();
+});
+window.addEventListener("mouseup", e =>
+{
+    if (!enableInput)
+        return;
+    cursorMove();
+
+    if (exitDown)
+        exitButtonUp();
+});
+
+function inputTick()
+{
+    let now = performance.now();
+
+    if (state.exitButton.activeStartTime != -1)
+    {
+        if (now - state.exitButton.activeStartTime >= state.exitButton.activeDuration)
+        {
+            state.exitButton.activeStartTime = -1;
+            clearState();
+            abortDecider();
+            showStartPage(state.beatmapFileName);
+        }
+    }
+}
+setInterval(inputTick, 60);
 
 /**
  * @param {boolean} enable

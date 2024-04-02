@@ -1,12 +1,12 @@
-import { setTitleText, showDecisionText, showKeyState, showKeyVisualEffect } from "./draw.js";
+import { showDecisionText, setKeyState, showKeyVisualEffect } from "./draw.js";
 import { state } from "./state.js";
 
 /**
- * @type {Promise<void>}
+ * @type {Promise<boolean>}
  */
 let deciderEndPromise = null;
 /**
- * @type {() => void}
+ * @type {(finish: boolean) => void}
  */
 let deciderEndCallback = null;
 
@@ -207,7 +207,7 @@ function deciderTick()
     {
         deciderState.deciderEnded = true;
         if (deciderEndCallback)
-            deciderEndCallback();
+            deciderEndCallback(true);
         deciderEndCallback = null;
         deciderEndPromise = null;
     }
@@ -215,14 +215,14 @@ function deciderTick()
 
 function refreshScoreDisplay()
 {
-    setTitleText(`${((deciderState.totalScore > 0 ? deciderState.score / deciderState.totalScore : 1) * 100).toFixed(3)}%  ${deciderState.combo} combo`);
+    state.titleText = `${((deciderState.totalScore > 0 ? deciderState.score / deciderState.totalScore : 1) * 100).toFixed(3)}%  ${deciderState.combo} combo`;
 }
 
 setInterval(() =>
 {
     matchTime = performance.now() - state.matchStartTime;
     deciderTick();
-}, 40);
+}, 35);
 
 /**
  * @param {number} column
@@ -231,7 +231,7 @@ export function keydown(column)
 {
     if (!keyState[column])
     {
-        showKeyState(column, true);
+        setKeyState(column, true);
         keyState[column] = true;
 
         matchTime = performance.now() - state.matchStartTime;
@@ -282,7 +282,7 @@ export function keyup(column)
 {
     if (keyState[column])
     {
-        showKeyState(column, false);
+        setKeyState(column, false);
         keyState[column] = false;
 
         matchTime = performance.now() - state.matchStartTime;
@@ -358,14 +358,32 @@ export function refreshDeciderMapNotes()
     });
 }
 
+export function abortDecider()
+{
+    keyState = [];
+    deciderHoldEndTimeList = [];
+
+    deciderQueueList = [];
+    deciderPointerList = [];
+    for (let i = 0; i < state.columnNumber; i++)
+    {
+        deciderQueueList[i] = [];
+        deciderPointerList[i] = 0;
+    }
+    if (deciderEndCallback)
+        deciderEndCallback(false);
+    deciderEndCallback = null;
+    deciderEndPromise = null;
+}
+
 /**
  * 
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>}
  */
 export function waitForEnd()
 {
     if (deciderState.deciderEnded)
-        return Promise.resolve();
+        return Promise.resolve(false);
     if (!deciderEndPromise)
     {
         deciderEndPromise = new Promise(resolve =>

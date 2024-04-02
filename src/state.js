@@ -4,9 +4,39 @@ export let state = {
      */
     mapNotes: [],
 
+    mapNotesPointer: 0,
+
+    /**
+     * @type {Set<{ column: number, time: number, hold: boolean, endTime: number, judged: boolean, holding: boolean }>}
+     */
+    sceneNotes: new Set(),
+
     matchStartTime: 0,
 
-    columnNumber: 0
+    columnNumber: 0,
+
+    noteWidthRatio: 1,
+
+    canvasRatio: 1,
+
+    /**
+     * @type {HTMLAudioElement}
+     */
+    audio: null,
+
+    titleText: "",
+
+    beatmapFileName: "",
+
+    exitButton: {
+        enable: false,
+        x: 70,
+        y: 70,
+        radius: 60,
+        activeStartTime: -1,
+        activeDuration: 390,
+        alpha: 0.5
+    }
 };
 
 /**
@@ -36,4 +66,17 @@ export function setMapNotes(notes, mapColumnNumber)
 export function correctMatchTime(time)
 {
     state.matchStartTime = performance.now() - time;
+}
+
+
+export function clearState()
+{
+    if (state.audio)
+    {
+        state.audio.pause();
+        state.audio = null;
+    }
+    state.mapNotes.length = 0;
+    state.mapNotesPointer = 0;
+    state.sceneNotes.clear();
 }

@@ -4,14 +4,14 @@ import { BlobWriter } from "../lib/zip.js";
 import { BlobReader } from "../lib/zip.js";
 
 import { refreshDeciderMapNotes } from "./decider.js";
-import { correctMatchTime, setMapNotes } from "./state.js";
+import { correctMatchTime, setMapNotes, state } from "./state.js";
 
 let userAudioLatency = 0;
 
 /**
  * @type {Array<string>}
  */
-let beatmapFileNameList = [];
+export let beatmapFileNameList = [];
 
 /**
  * @type {Map<string, {
@@ -22,11 +22,42 @@ let beatmapFileNameList = [];
 let zipFileMap = new Map();
 
 /**
- * @param {string} beatmapUrl
+ * @param {Response} response
+ * @param {(x: number) => void} progressChangeCB
+ * @returns {Promise<Blob>}
  */
-export async function loadBeatmapPackage(beatmapUrl)
+async function getResponseProgress(response, progressChangeCB)
 {
-    let zipFileBlob = await (await fetch(beatmapUrl)).blob();
+    let reader = response.body.getReader();
+    let contentLength = Number(response.headers.get("content-length"));
+
+    let data = new Uint8Array(contentLength);
+    let nowIndex = 0;
+    while (true)
+    {
+        let { done, value } = await reader.read();
+
+        if (done)
+            break;
+
+        data.set(value, nowIndex);
+        nowIndex += value.byteLength;
+        progressChangeCB(Math.min(0.999, nowIndex / contentLength));
+    }
+
+    progressChangeCB(1);
+
+    return new Blob([data]);
+}
+
+/**
+ * @param {string} beatmapUrl
+ * @param {(x: number) => void} [progressChangeCB]
+ */
+export async function loadBeatmapPackage(beatmapUrl, progressChangeCB)
+{
+    let response = await fetch(beatmapUrl);
+    let zipFileBlob = (progressChangeCB ? await getResponseProgress(response, progressChangeCB) : await response.blob());
     let zipFileBlobReader = new BlobReader(zipFileBlob);
     let zipReader = new ZipReader(zipFileBlobReader);
     let fileEntries = await zipReader.getEntries();
@@ -64,7 +95,7 @@ export async function loadBeatmapPackage(beatmapUrl)
         zipFileMap.set(fileName, fileHandle);
     });
 
-    console.log(beatmapFileNameList);
+    // console.log(beatmapFileNameList);
 }
 
 /**
@@ -76,7 +107,7 @@ export async function readBeatmapFile(fileName, justMeta = false)
 {
     let beatmapData = await zipFileMap.get(fileName).readAsText();
 
-    console.log(beatmapData);
+    // console.log(beatmapData);
 
     let beatmapMeta = {
         General: {},
@@ -188,13 +219,13 @@ export async function getBeatmapFileName(beatmapIdType, beatmapId)
     else if (beatmapIdType == "fileName")
         return beatmapId + ".osu";
     else if (beatmapIdType == "rawFileName")
-        return beatmapId + ".osu";
+        return String(beatmapId);
     else if (beatmapIdType == "bid")
     {
-        for(let fileName of beatmapFileNameList)
+        for (let fileName of beatmapFileNameList)
         {
             let meta = await readBeatmapFile(fileName, true);
-            if(meta.meta.Metadata.BeatmapID == String(beatmapId))
+            if (meta.meta.Metadata.BeatmapID == String(beatmapId))
                 return fileName;
         }
     }
@@ -219,13 +250,15 @@ async function readAudioFile(fileName)
  */
 export async function playBeatmap(beatmapFileName)
 {
+    state.beatmapFileName = beatmapFileName;
 
     let beatmap = await readBeatmapFile(beatmapFileName);
     let beatmapMeta = beatmap.meta;
-    let beatmapHibObjArray = beatmap.hitObj;
+    let beatmapHibObjArray = beatmap.hitObj.slice().sort((a, b) => (a.time - b.time));
 
     let audioFileName = String(beatmapMeta.General.AudioFilename);
     let audio = await readAudioFile(audioFileName);
+    state.audio = audio;
 
     let audioLeadInTime = Number(beatmapMeta.General.AudioLeadIn || 0);
 
@@ -234,8 +267,11 @@ export async function playBeatmap(beatmapFileName)
 
     setTimeout(async () =>
     {
-        await audio.play();
-        correctMatchTime(audioLeadInTime - audioLatency);
+        if (audio == state.audio)
+        {
+            await audio.play();
+            correctMatchTime(audioLeadInTime - audioLatency);
+        }
     }, 3000 + audioLeadInTime);
 
     let mapNotes = beatmapHibObjArray.map(o => ({
