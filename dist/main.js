@@ -12476,8 +12476,12 @@
                         border: "1px solid rgb(0, 0, 0)",
                         backgroundColor: "rgba(255, 255, 255, 0.3)"
                     }),
-
+                    
                     [
+                        createNStyleList({
+                            maxWidth: "100%"
+                        }),
+
                         new NTagName("img"),
                         new NAttr("src", o.cover)
                     ],
