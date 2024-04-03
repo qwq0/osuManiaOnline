@@ -99,8 +99,8 @@
     function resizeCanvas()
     {
         let canvasRatio = window.devicePixelRatio;
-        let width = Math.round(canvasElement.clientWidth * canvasRatio);
-        let height = Math.round(canvasElement.clientHeight * canvasRatio);
+        let width = Math.floor(canvasElement.clientWidth * canvasRatio);
+        let height = Math.floor(canvasElement.clientHeight * canvasRatio);
         if (width != oldWidth || height != oldHeight || canvasRatio != state.canvasRatio)
         {
             state.canvasRatio = canvasRatio;
@@ -122,12 +122,47 @@
 
     let canvasContext = canvasElement.getContext("2d");
 
+    let storageContext = {
+        config: {
+            noteDuration: 1435,
+            userAudioLatency: 0
+        }
+    };
+    readConfig();
+
+    function readConfig()
+    {
+        try
+        {
+            let config = JSON.parse(localStorage.getItem("omo_config"));
+            Object.entries(config).forEach(([key, value]) =>
+            {
+                storageContext.config[key] = value;
+            });
+        }
+        catch (err)
+        {
+            console.error(err);
+        }
+    }
+
+    function saveConfig()
+    {
+        try
+        {
+            localStorage.setItem("omo_config", JSON.stringify(storageContext.config));
+        }
+        catch (err)
+        {
+            console.error(err);
+        }
+    }
+
     /**
      * @type {typeof state.sceneNotes}
      */
     let sceneNotes = state.sceneNotes;
 
-    let noteDuration = 441;
 
 
     /** @type {Array<boolean>} */
@@ -156,23 +191,23 @@
         let canvasWidth = canvasElement.width;
         let canvasHeight = canvasElement.height;
 
+        context.fillStyle = "rgb(0, 0, 0)";
+        context.fillRect(0, 0, canvasWidth, canvasHeight);
+
         if (state.columnNumber > 0)
             state.noteWidthRatio = (canvasWidth >= canvasHeight ? 1 / 15 : 1 / state.columnNumber);
         else
             state.noteWidthRatio = 1;
-        let noteWidth = canvasWidth * state.noteWidthRatio;
+        let trackWidth = canvasWidth * state.noteWidthRatio;
         let noteHeight = Math.min(canvasWidth, canvasHeight) / 55;
-        let noteOffset = (canvasWidth - noteWidth * state.columnNumber) / 2;
-
-        context.fillStyle = "rgb(0, 0, 0)";
-        context.fillRect(0, 0, canvasWidth, canvasHeight);
-
-
-        context.fillStyle = "rgb(25, 25, 25)";
-        context.fillRect(noteOffset, 0, noteWidth * state.columnNumber, canvasHeight);
+        let trackOffsetX = (canvasWidth - trackWidth * state.columnNumber) / 2;
+        let noteDuration = storageContext.config.noteDuration;
 
         {
             context.save();
+
+            context.fillStyle = "rgb(25, 25, 25)";
+            context.fillRect(trackOffsetX, 0, trackWidth * state.columnNumber, canvasHeight);
 
             let bottomFillHeight = canvasHeight * 0.13;
             let trackHeight = canvasHeight - bottomFillHeight;
@@ -210,8 +245,8 @@
                         return;
 
                     let progress = 1 - ((o.time - matchTime) / noteDuration);
-                    let noteX = noteOffset + o.column * noteWidth + 1;
-                    let noteW = noteWidth - 2;
+                    let noteX = trackOffsetX + o.column * trackWidth + 1;
+                    let noteW = trackWidth - 2;
 
                     if (o.hold)
                     {
@@ -224,13 +259,16 @@
 
                         if (holdLength >= 0)
                         {
+                            // hold body
                             context.fillStyle = "rgb(170, 212, 215)";
                             context.fillRect(noteX, holdEndY, noteW, noteHeight + holdLength);
 
+                            // hold start
                             context.fillStyle = "rgb(255, 255, 255)";
                             context.fillRect(noteX, holdStartY, noteW, noteHeight);
 
-                            context.fillStyle = "rgb(210, 170, 170)";
+                            // hold end
+                            context.fillStyle = "rgb(130, 160, 160)";
                             context.fillRect(noteX, holdEndY, noteW, noteHeight);
                         }
                     }
@@ -244,22 +282,22 @@
                 });
             }
             else
-            {
+            { // 空闲倒计时
                 let nextNode = state.mapNotes[state.mapNotesPointer];
-                if (nextNode && nextNode.time > matchTime + 5000)
+                if (nextNode && nextNode.time > matchTime + 3000)
                 {
                     context.textBaseline = "middle";
                     context.textAlign = "center";
                     context.fillStyle = "rgb(255, 255, 255)";
                     context.font = "50px sans-serif";
-                    context.fillText(`${Math.floor((nextNode.time - matchTime - 4000) / 1000)}`, canvasWidth / 2, canvasHeight / 2);
+                    context.fillText(`${1 + Math.floor((nextNode.time - matchTime - 3000) / 1000)}`, canvasWidth / 2, canvasHeight / 2);
                 }
             }
 
             // 判定线与打击特效
             for (let i = 0; i < state.columnNumber; i++)
             {
-                let columnX = noteOffset + i * noteWidth;
+                let columnX = trackOffsetX + i * trackWidth;
 
                 // 打击特效
                 if (keyVisualEffect[i])
@@ -276,7 +314,7 @@
 
                         context.fillStyle = gradient;
                         context.globalAlpha = (effect.endTime - now) * effect.ratio;
-                        context.fillRect(columnX, trackHeight - effectHeight - noteHeight / 2, noteWidth, effectHeight);
+                        context.fillRect(columnX, trackHeight - effectHeight - noteHeight / 2, trackWidth, effectHeight);
                         context.globalAlpha = 1;
                     }
                     else
@@ -288,7 +326,7 @@
                 // 判定线
                 let lineWidth = (keyState$1[i] ? 7 : 2);
                 context.fillStyle = (keyState$1[i] ? "rgb(230, 230, 230)" : "rgb(200, 200, 200)");
-                context.fillRect(columnX, trackHeight - noteHeight / 2 - lineWidth / 2, noteWidth, lineWidth);
+                context.fillRect(columnX, trackHeight - noteHeight / 2 - lineWidth / 2, trackWidth, lineWidth);
             }
 
             // 判定文本
@@ -402,15 +440,6 @@
             midTime: lastTime + 120,
             endTime: lastTime + 120 * 2
         };
-    }
-
-    /**
-     * 
-     * @param {number} duration
-     */
-    function setNoteDuration(duration)
-    {
-        noteDuration = duration;
     }
 
     /**
@@ -10164,8 +10193,6 @@
 
     configure({ Deflate: ZipDeflate, Inflate: ZipInflate });
 
-    let userAudioLatency = 0;
-
     /**
      * @type {Array<string>}
      */
@@ -10421,7 +10448,7 @@
         let audioLeadInTime = Number(beatmapMeta.General.AudioLeadIn || 0);
 
         let audioContext = new AudioContext();
-        let audioLatency = audioContext.outputLatency * 1000 + userAudioLatency;
+        let audioLatency = Math.round(audioContext.outputLatency * 1000 + (Number.isFinite(storageContext.config.userAudioLatency) ? storageContext.config.userAudioLatency : 0));
 
         setTimeout(async () =>
         {
@@ -10441,14 +10468,6 @@
 
         setMapNotes(mapNotes, beatmap.columnNumber);
         refreshDeciderMapNotes();
-    }
-
-    /**
-     * @param {number} latency
-     */
-    function setUserAudioLatency(latency)
-    {
-        userAudioLatency = latency;
     }
 
     /**
@@ -11778,6 +11797,99 @@
     }
 
     /**
+     * @param {string} beatmapUrl
+     * @param {{
+     *  bid?: string,
+     *  bNum?: number
+     * }} paramObj
+     */
+    async function loadAndShowLoadingPage(beatmapUrl, paramObj)
+    {
+        /**
+         * @type {NElement}
+         */
+        let textElement = null;
+        /**
+         * @type {(x: number) => void}
+         */
+        let progressChange = null;
+        let ui = NList.getElement([
+            createNStyleList({
+                position: "absolute",
+                left: "0",
+                top: "0",
+                width: "100%",
+                height: "100%",
+                backgroundColor: "rgba(180, 220, 240, 0.5)",
+
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+
+                fontSize: "20px"
+            }),
+
+            [
+                createNStyleList({
+                    padding: "20px",
+                    backgroundColor: "rgb(180, 220, 240)",
+                    border: "2px solid rgb(40, 40, 40)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "5px",
+                    overflow: "auto",
+
+                    maxHeight: "90%",
+                    maxWidth: "90%"
+                }),
+
+                [
+                    "Loading",
+                    ele => { textElement = ele; }
+                ],
+
+                [
+                    createNStyleList({
+                        width: "200px",
+                        height: "10px",
+                        backgroundColor: "rgb(160, 160, 160)"
+                    }),
+                    [
+                        createNStyleList({
+                            height: "100%",
+                            width: "0%",
+                            backgroundColor: "rgb(190, 190, 240)"
+                        }),
+                        ele =>
+                        {
+                            progressChange = progress =>
+                            {
+                                ele.setStyle("width", (progress * 100).toFixed(2) + "%");
+                            };
+                        }
+                    ]
+                ]
+            ]
+        ]);
+
+        getNElement(document.body).addChild(ui);
+
+        try
+        {
+            await loadBeatmapPackage(beatmapUrl, progressChange);
+            state.beatmapFileName = (paramObj.bid != undefined ? await getBeatmapFileName("bid", paramObj.bid) : await getBeatmapFileName("index", paramObj.bNum | 0));
+
+            ui.remove();
+
+            showStartPage(state.beatmapFileName);
+        }
+        catch (err)
+        {
+            textElement.setText(String(err));
+        }
+    }
+
+    /**
      * @param {string} beatmapFileName
      */
     async function showStartPage(beatmapFileName)
@@ -11891,6 +12003,33 @@
                             (o.endsWith(".osu") ? o.slice(0, -4) : o)
                         ])
                     ]
+                ],
+
+                [
+                    "切换铺面集: ",
+                    [
+                        createNStyleList({
+                            padding: "5px",
+                            paddingLeft: "15px",
+                            paddingRight: "15px",
+                            backgroundColor: "rgb(220, 220, 240)",
+                            border: "1px solid rgb(20, 20, 20)",
+
+                            display: "inline-flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+
+                            cursor: "default",
+                            fontSize: "0.9em"
+                        }),
+
+                        "搜索铺面集",
+                        new NEvent("click", () =>
+                        {
+                            ui.remove();
+                            showSearchBeatmapPage();
+                        })
+                    ],
                 ],
 
                 [
@@ -12165,7 +12304,7 @@
 
                         ...speedList.map(o => [
                             new NTagName("option"),
-                            // (o == state ? new NAttr("selected", "true") : null),
+                            (o.duration == storageContext.config.noteDuration ? new NAttr("selected", "true") : null),
                             new NAttr("value", String(o.duration)),
                             `${o.speed}速 (${o.duration}ms)`
                         ])
@@ -12180,7 +12319,7 @@
 
                         new NAttr("max", "1000"),
                         new NAttr("min", "-1000"),
-                        new NAttr("value", "0"),
+                        new NAttr("value", String(storageContext.config.userAudioLatency)),
 
                         createNStyleList({
                             padding: "5px",
@@ -12232,14 +12371,245 @@
                         ui.remove();
 
                         let noteDuration = Number(speedSelect.element.value);
-                        setNoteDuration(noteDuration);
+                        storageContext.config.noteDuration = noteDuration;
 
                         let audioLatency = Number(audioLatencyInput.element.value);
                         if (!Number.isFinite(audioLatency))
                             audioLatency = 0;
                         audioLatency = Math.max(-1000, Math.min(1000, audioLatency));
-                        setUserAudioLatency(audioLatency);
+                        storageContext.config.userAudioLatency = audioLatency;
+
+                        saveConfig();
                     })
+                ]
+            ]
+        ]);
+
+        getNElement(document.body).addChild(ui);
+    }
+
+    function showSearchBeatmapPage()
+    {
+        /**
+         * @param {string} name
+         * @param {number} pageIndex
+         * @returns {Promise<{
+         *  list: Array<{
+         *      title: string,
+         *      artist: string,
+         *      creator: string,
+         *      sid: string,
+         *      cover: string
+         *  }>,
+         *  hasNextPage: boolean
+         * }>}
+         */
+        async function getSearchBeatmap(name, pageIndex)
+        {
+            try
+            {
+                let response = await fetch(`https://api.sayobot.cn/beatmaplist?0=20&1=${String(pageIndex * 20)}&2=4&3=${encodeURIComponent(name)}&5=8`);
+                let result = await response.json();
+                return {
+                    hasNextPage: result.endid != 0,
+                    list: result.data.map((/** @type {any} */ o) =>
+                    {
+                        return {
+                            title: String(o.title),
+                            artist: String(o.artist),
+                            creator: String(o.creator),
+                            sid: String(o.sid),
+                            cover: `https://cdn.sayobot.cn:25225/beatmaps/${o.sid}/covers/cover.webp`
+                        };
+                    })
+                };
+            }
+            catch (err)
+            {
+                console.log(err);
+            }
+        }
+
+        /**
+         * @type {NElement}
+         */
+        let beatmapListElement = null;
+        /**
+         * @type {NElement}
+         */
+        let pageElement = null;
+
+        let searchName = "";
+        let pageIndex = 0;
+
+        async function searchBeatmap()
+        {
+            let data = await getSearchBeatmap(searchName, pageIndex);
+            beatmapListElement.removeChilds();
+            if (pageIndex > 0)
+                beatmapListElement.addChild(NList.getElement([
+                    createNStyleList({
+                        padding: "8px",
+                        paddingLeft: "40px",
+                        paddingRight: "40px",
+                        backgroundColor: "rgb(220, 220, 240)",
+                        border: "1px solid rgb(20, 20, 20)",
+
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+
+                        cursor: "default"
+                    }),
+
+                    "上一页",
+                    new NEvent("click", () =>
+                    {
+                        pageIndex--;
+                        searchBeatmap();
+                    })
+                ]));
+            data.list.forEach(o =>
+            {
+                beatmapListElement.addChild(NList.getElement([
+                    createNStyleList({
+                        border: "1px solid rgb(0, 0, 0)",
+                        backgroundColor: "rgba(255, 255, 255, 0.3)"
+                    }),
+
+                    [
+                        new NTagName("img"),
+                        new NAttr("src", o.cover)
+                    ],
+
+                    [
+                        `${o.title} - ${o.artist}`
+                    ],
+
+                    [
+                        `${o.creator}`
+                    ],
+
+                    new NEvent("click", () =>
+                    {
+                        ui.remove();
+                        let sid = o.sid;
+                        loadAndShowLoadingPage(`https://cmcc.sayobot.cn:25225/beatmaps/${(sid.length >= 5 ? sid.slice(0, -4) : "0")}/${sid.slice(-4)}/novideo`, {});
+                    })
+                ]));
+            });
+            if (data.hasNextPage)
+                beatmapListElement.addChild(NList.getElement([
+                    createNStyleList({
+                        padding: "8px",
+                        paddingLeft: "40px",
+                        paddingRight: "40px",
+                        backgroundColor: "rgb(220, 220, 240)",
+                        border: "1px solid rgb(20, 20, 20)",
+
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+
+                        cursor: "default"
+                    }),
+
+                    "下一页",
+                    new NEvent("click", () =>
+                    {
+                        pageIndex++;
+                        searchBeatmap();
+                        pageElement.element.scrollTop = 0;
+                    })
+                ]));
+        }
+
+        let ui = NList.getElement([
+            createNStyleList({
+                position: "absolute",
+                left: "0",
+                top: "0",
+                width: "100%",
+                height: "100%",
+                backgroundColor: "rgba(180, 220, 240, 0.5)",
+
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+
+                fontSize: "20px"
+            }),
+
+            [
+                createNStyleList({
+                    padding: "20px",
+                    backgroundColor: "rgb(180, 220, 240)",
+                    border: "2px solid rgb(40, 40, 40)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "5px",
+                    overflow: "auto",
+
+                    maxHeight: "90%",
+                    maxWidth: "90%"
+                }),
+
+                ele => { pageElement = ele; },
+
+                (state.beatmapFileName ? [
+                    createNStyleList({
+                        padding: "6px",
+                        paddingLeft: "40px",
+                        paddingRight: "40px",
+                        backgroundColor: "rgb(220, 220, 240)",
+                        border: "1px solid rgb(20, 20, 20)",
+
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+
+                        cursor: "default"
+                    }),
+
+                    "返回",
+                    new NEvent("click", () =>
+                    {
+                        ui.remove();
+                        showStartPage(state.beatmapFileName);
+                    })
+                ] : null),
+
+                [
+                    "搜索铺面"
+                ],
+
+                [
+                    new NTagName("input"),
+                    new NAttr("type", "text"),
+
+                    createNStyleList({
+                        outline: "none",
+                        lineHeight: "1.5em"
+                    }),
+
+                    new NEvent("keyup", (e, ele) =>
+                    {
+                        if (e.key == "Enter")
+                        {
+                            searchName = ele.element.value;
+                            pageIndex = 0;
+                            searchBeatmap();
+                        }
+                    })
+                ],
+
+                [
+                    createNStyleList({
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "5px"
+                    }),
+                    ele => { beatmapListElement = ele; }
                 ]
             ]
         ]);
@@ -12549,110 +12919,25 @@
 
     (async () =>
     {
-        { // loading页
-            /**
-             * @type {NElement}
-             */
-            let textElement = null;
-            /**
-             * @type {(x: number) => void}
-             */
-            let progressChange = null;
-            let ui = NList.getElement([
-                createNStyleList({
-                    position: "absolute",
-                    left: "0",
-                    top: "0",
-                    width: "100%",
-                    height: "100%",
-                    backgroundColor: "rgba(180, 220, 240, 0.5)",
+        let sid = getUrlSearchParam("sid");
 
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
+        if (sid == undefined)
+            showSearchBeatmapPage();
+        else
+        {
+            let bid = getUrlSearchParam("bid");
+            let bNum = Number(getUrlSearchParam("b-num"));
+            if (!Number.isInteger(bNum))
+                bNum = 0;
 
-                    fontSize: "20px"
-                }),
-
-                [
-                    createNStyleList({
-                        padding: "20px",
-                        backgroundColor: "rgb(180, 220, 240)",
-                        border: "2px solid rgb(40, 40, 40)",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "5px",
-                        overflow: "auto",
-
-                        maxHeight: "90%",
-                        maxWidth: "90%"
-                    }),
-
-                    [
-                        "Loading",
-                        ele => { textElement = ele; }
-                    ],
-
-                    [
-                        createNStyleList({
-                            width: "200px",
-                            height: "10px",
-                            backgroundColor: "rgb(160, 160, 160)"
-                        }),
-                        [
-                            createNStyleList({
-                                height: "100%",
-                                width: "0%",
-                                backgroundColor: "rgb(190, 190, 240)"
-                            }),
-                            ele =>
-                            {
-                                progressChange = progress =>
-                                {
-                                    ele.setStyle("width", (progress * 100).toFixed(2) + "%");
-                                };
-                            }
-                        ]
-                    ]
-                ]
-            ]);
-
-            getNElement(document.body).addChild(ui);
-
-            try
-            {
-                let sid = getUrlSearchParam("sid");
-                let bid = getUrlSearchParam("bid");
-                let bNum = Number(getUrlSearchParam("b-num"));
-                let noteDuration = Number(getUrlSearchParam("note-duration"));
-                let userAudioLatency = Number(getUrlSearchParam("audio-latency"));
-
-                if (sid == undefined)
-                    throw "Need a param (sid)";
-                if (!Number.isInteger(bNum))
-                    bNum = 0;
-                if (!Number.isInteger(noteDuration))
-                    noteDuration = 441;
-                if ((!Number.isInteger(userAudioLatency)) || userAudioLatency < -100 || userAudioLatency > 1000)
-                    userAudioLatency = 0;
-
-                setNoteDuration(noteDuration);
-                setUserAudioLatency(userAudioLatency);
-
-                await loadBeatmapPackage(`https://cmcc.sayobot.cn:25225/beatmaps/${(sid.length >= 5 ? sid.slice(0, -4) : "0")}/${sid.slice(-4)}/novideo`, progressChange);
-                state.beatmapFileName = (bid != undefined ? await getBeatmapFileName("bid", bid) : await getBeatmapFileName("index", bNum));
-
-                ui.remove();
-
-                showStartPage(state.beatmapFileName);
-            }
-            catch (err)
-            {
-                textElement.setText(String(err));
-            }
+            loadAndShowLoadingPage(
+                `https://cmcc.sayobot.cn:25225/beatmaps/${(sid.length >= 5 ? sid.slice(0, -4) : "0")}/${sid.slice(-4)}/novideo`,
+                {
+                    bid: bid,
+                    bNum: bNum
+                }
+            );
         }
-
-
     })();
 
 })();

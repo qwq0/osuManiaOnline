@@ -127,15 +127,15 @@ function draw()
             });
         }
         else
-        {
+        { // 空闲倒计时
             let nextNode = state.mapNotes[state.mapNotesPointer];
-            if (nextNode && nextNode.time > matchTime + 5000)
+            if (nextNode && nextNode.time > matchTime + 3000)
             {
                 context.textBaseline = "middle";
                 context.textAlign = "center";
                 context.fillStyle = "rgb(255, 255, 255)";
                 context.font = "50px sans-serif";
-                context.fillText(`${Math.floor((nextNode.time - matchTime - 4000) / 1000)}`, canvasWidth / 2, canvasHeight / 2);
+                context.fillText(`${1 + Math.floor((nextNode.time - matchTime - 3000) / 1000)}`, canvasWidth / 2, canvasHeight / 2);
             }
         }
 

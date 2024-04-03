@@ -15,6 +15,99 @@ import { saveConfig, storageContext } from "./storage.js";
 
 
 /**
+ * @param {string} beatmapUrl
+ * @param {{
+ *  bid?: string,
+ *  bNum?: number
+ * }} paramObj
+ */
+export async function loadAndShowLoadingPage(beatmapUrl, paramObj)
+{
+    /**
+     * @type {NElement}
+     */
+    let textElement = null;
+    /**
+     * @type {(x: number) => void}
+     */
+    let progressChange = null;
+    let ui = NList.getElement([
+        styles({
+            position: "absolute",
+            left: "0",
+            top: "0",
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(180, 220, 240, 0.5)",
+
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+
+            fontSize: "20px"
+        }),
+
+        [
+            styles({
+                padding: "20px",
+                backgroundColor: "rgb(180, 220, 240)",
+                border: "2px solid rgb(40, 40, 40)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "5px",
+                overflow: "auto",
+
+                maxHeight: "90%",
+                maxWidth: "90%"
+            }),
+
+            [
+                "Loading",
+                ele => { textElement = ele; }
+            ],
+
+            [
+                styles({
+                    width: "200px",
+                    height: "10px",
+                    backgroundColor: "rgb(160, 160, 160)"
+                }),
+                [
+                    styles({
+                        height: "100%",
+                        width: "0%",
+                        backgroundColor: "rgb(190, 190, 240)"
+                    }),
+                    ele =>
+                    {
+                        progressChange = progress =>
+                        {
+                            ele.setStyle("width", (progress * 100).toFixed(2) + "%");
+                        };
+                    }
+                ]
+            ]
+        ]
+    ]);
+
+    getNElement(document.body).addChild(ui);
+
+    try
+    {
+        await loadBeatmapPackage(beatmapUrl, progressChange);
+        state.beatmapFileName = (paramObj.bid != undefined ? await getBeatmapFileName("bid", paramObj.bid) : await getBeatmapFileName("index", paramObj.bNum | 0));
+
+        ui.remove();
+
+        showStartPage(state.beatmapFileName);
+    }
+    catch (err)
+    {
+        textElement.setText(String(err));
+    }
+}
+
+/**
  * @param {string} beatmapFileName
  */
 export async function showStartPage(beatmapFileName)
@@ -128,6 +221,33 @@ export async function showStartPage(beatmapFileName)
                         (o.endsWith(".osu") ? o.slice(0, -4) : o)
                     ])
                 ]
+            ],
+
+            [
+                "切换铺面集: ",
+                [
+                    styles({
+                        padding: "5px",
+                        paddingLeft: "15px",
+                        paddingRight: "15px",
+                        backgroundColor: "rgb(220, 220, 240)",
+                        border: "1px solid rgb(20, 20, 20)",
+
+                        display: "inline-flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+
+                        cursor: "default",
+                        fontSize: "0.9em"
+                    }),
+
+                    "搜索铺面集",
+                    new NEvent("click", () =>
+                    {
+                        ui.remove();
+                        showSearchBeatmapPage();
+                    })
+                ],
             ],
 
             [
@@ -488,6 +608,140 @@ export async function showOptionPage()
 
 export function showSearchBeatmapPage()
 {
+    /**
+     * @param {string} name
+     * @param {number} pageIndex
+     * @returns {Promise<{
+     *  list: Array<{
+     *      title: string,
+     *      artist: string,
+     *      creator: string,
+     *      sid: string,
+     *      cover: string
+     *  }>,
+     *  hasNextPage: boolean
+     * }>}
+     */
+    async function getSearchBeatmap(name, pageIndex)
+    {
+        try
+        {
+            let response = await fetch(`https://api.sayobot.cn/beatmaplist?0=20&1=${String(pageIndex * 20)}&2=4&3=${encodeURIComponent(name)}&5=8`);
+            let result = await response.json();
+            return {
+                hasNextPage: result.endid != 0,
+                list: result.data.map((/** @type {any} */ o) =>
+                {
+                    return {
+                        title: String(o.title),
+                        artist: String(o.artist),
+                        creator: String(o.creator),
+                        sid: String(o.sid),
+                        cover: `https://cdn.sayobot.cn:25225/beatmaps/${o.sid}/covers/cover.webp`
+                    };
+                })
+            };
+        }
+        catch (err)
+        {
+            console.log(err);
+        }
+    }
+
+    /**
+     * @type {NElement}
+     */
+    let beatmapListElement = null;
+    /**
+     * @type {NElement}
+     */
+    let pageElement = null;
+
+    let searchName = "";
+    let pageIndex = 0;
+
+    async function searchBeatmap()
+    {
+        let data = await getSearchBeatmap(searchName, pageIndex);
+        beatmapListElement.removeChilds();
+        if (pageIndex > 0)
+            beatmapListElement.addChild(NList.getElement([
+                styles({
+                    padding: "8px",
+                    paddingLeft: "40px",
+                    paddingRight: "40px",
+                    backgroundColor: "rgb(220, 220, 240)",
+                    border: "1px solid rgb(20, 20, 20)",
+
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+
+                    cursor: "default"
+                }),
+
+                "上一页",
+                new NEvent("click", () =>
+                {
+                    pageIndex--;
+                    searchBeatmap();
+                })
+            ]));
+        data.list.forEach(o =>
+        {
+            beatmapListElement.addChild(NList.getElement([
+                styles({
+                    border: "1px solid rgb(0, 0, 0)",
+                    backgroundColor: "rgba(255, 255, 255, 0.3)"
+                }),
+
+                [
+                    new NTagName("img"),
+                    new NAttr("src", o.cover)
+                ],
+
+                [
+                    `${o.title} - ${o.artist}`
+                ],
+
+                [
+                    `${o.creator}`
+                ],
+
+                new NEvent("click", () =>
+                {
+                    ui.remove();
+                    let sid = o.sid;
+                    loadAndShowLoadingPage(`https://cmcc.sayobot.cn:25225/beatmaps/${(sid.length >= 5 ? sid.slice(0, -4) : "0")}/${sid.slice(-4)}/novideo`, {});
+                })
+            ]));
+        });
+        if (data.hasNextPage)
+            beatmapListElement.addChild(NList.getElement([
+                styles({
+                    padding: "8px",
+                    paddingLeft: "40px",
+                    paddingRight: "40px",
+                    backgroundColor: "rgb(220, 220, 240)",
+                    border: "1px solid rgb(20, 20, 20)",
+
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+
+                    cursor: "default"
+                }),
+
+                "下一页",
+                new NEvent("click", () =>
+                {
+                    pageIndex++;
+                    searchBeatmap();
+                    pageElement.element.scrollTop = 0;
+                })
+            ]));
+    }
+
     let ui = NList.getElement([
         styles({
             position: "absolute",
@@ -518,10 +772,63 @@ export function showSearchBeatmapPage()
                 maxWidth: "90%"
             }),
 
+            ele => { pageElement = ele; },
+
+            (state.beatmapFileName ? [
+                styles({
+                    padding: "6px",
+                    paddingLeft: "40px",
+                    paddingRight: "40px",
+                    backgroundColor: "rgb(220, 220, 240)",
+                    border: "1px solid rgb(20, 20, 20)",
+
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+
+                    cursor: "default"
+                }),
+
+                "返回",
+                new NEvent("click", () =>
+                {
+                    ui.remove();
+                    showStartPage(state.beatmapFileName);
+                })
+            ] : null),
 
             [
                 "搜索铺面"
             ],
+
+            [
+                new NTagName("input"),
+                new NAttr("type", "text"),
+
+                styles({
+                    outline: "none",
+                    lineHeight: "1.5em"
+                }),
+
+                new NEvent("keyup", (e, ele) =>
+                {
+                    if (e.key == "Enter")
+                    {
+                        searchName = ele.element.value;
+                        pageIndex = 0;
+                        searchBeatmap();
+                    }
+                })
+            ],
+
+            [
+                styles({
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "5px"
+                }),
+                ele => { beatmapListElement = ele; }
+            ]
         ]
     ]);
 
