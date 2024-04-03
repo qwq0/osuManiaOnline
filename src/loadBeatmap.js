@@ -5,8 +5,7 @@ import { BlobReader } from "../lib/zip.js";
 
 import { refreshDeciderMapNotes } from "./decider.js";
 import { correctMatchTime, setMapNotes, state } from "./state.js";
-
-let userAudioLatency = 0;
+import { storageContext } from "./storage.js";
 
 /**
  * @type {Array<string>}
@@ -263,7 +262,7 @@ export async function playBeatmap(beatmapFileName)
     let audioLeadInTime = Number(beatmapMeta.General.AudioLeadIn || 0);
 
     let audioContext = new AudioContext();
-    let audioLatency = audioContext.outputLatency * 1000 + userAudioLatency;
+    let audioLatency = Math.round(audioContext.outputLatency * 1000 + (Number.isFinite(storageContext.config.userAudioLatency) ? storageContext.config.userAudioLatency : 0));
 
     setTimeout(async () =>
     {
@@ -283,12 +282,4 @@ export async function playBeatmap(beatmapFileName)
 
     setMapNotes(mapNotes, beatmap.columnNumber);
     refreshDeciderMapNotes();
-}
-
-/**
- * @param {number} latency
- */
-export function setUserAudioLatency(latency)
-{
-    userAudioLatency = latency;
 }

@@ -4,10 +4,9 @@ import "./draw.js";
 import "./decider.js";
 import "./input.js";
 
-import { setNoteDuration } from "./draw.js";
 
 import { getUrlSearchParam } from "./util.js";
-import { getBeatmapFileName, loadBeatmapPackage, playBeatmap, readBeatmapFile, setUserAudioLatency } from "./loadBeatmap.js";
+import { getBeatmapFileName, loadBeatmapPackage, playBeatmap, readBeatmapFile } from "./loadBeatmap.js";
 import { deciderState, waitForEnd } from "./decider.js";
 
 import { getNElement, NElement, NList } from "../lib/qwqframe.js";
@@ -17,6 +16,7 @@ import { delayPromise } from "../lib/qwqframe.js";
 import { setInputEnable } from "./input.js";
 import { state } from "./state.js";
 import { showStartPage } from "./page.js";
+import { storageContext } from "./storage.js";
 
 
 (async () =>
@@ -96,20 +96,12 @@ import { showStartPage } from "./page.js";
             let sid = getUrlSearchParam("sid");
             let bid = getUrlSearchParam("bid");
             let bNum = Number(getUrlSearchParam("b-num"));
-            let noteDuration = Number(getUrlSearchParam("note-duration"));
-            let userAudioLatency = Number(getUrlSearchParam("audio-latency"));
 
             if (sid == undefined)
                 throw "Need a param (sid)";
             if (!Number.isInteger(bNum))
                 bNum = 0;
-            if (!Number.isInteger(noteDuration))
-                noteDuration = 441;
-            if ((!Number.isInteger(userAudioLatency)) || userAudioLatency < -100 || userAudioLatency > 1000)
-                userAudioLatency = 0;
 
-            setNoteDuration(noteDuration);
-            setUserAudioLatency(userAudioLatency);
 
             await loadBeatmapPackage(`https://cmcc.sayobot.cn:25225/beatmaps/${(sid.length >= 5 ? sid.slice(0, -4) : "0")}/${sid.slice(-4)}/novideo`, progressChange);
             state.beatmapFileName = (bid != undefined ? await getBeatmapFileName("bid", bid) : await getBeatmapFileName("index", bNum));

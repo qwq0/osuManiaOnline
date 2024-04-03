@@ -1,5 +1,6 @@
 import { canvasContext, canvasElement } from "./canvas.js";
 import { state } from "./state.js";
+import { storageContext } from "./storage.js";
 
 
 /**
@@ -7,7 +8,6 @@ import { state } from "./state.js";
  */
 let sceneNotes = state.sceneNotes;
 
-let noteDuration = 441;
 
 
 /** @type {Array<boolean>} */
@@ -36,23 +36,23 @@ function draw()
     let canvasWidth = canvasElement.width;
     let canvasHeight = canvasElement.height;
 
+    context.fillStyle = "rgb(0, 0, 0)";
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+
     if (state.columnNumber > 0)
         state.noteWidthRatio = (canvasWidth >= canvasHeight ? 1 / 15 : 1 / state.columnNumber);
     else
         state.noteWidthRatio = 1;
-    let noteWidth = canvasWidth * state.noteWidthRatio;
+    let trackWidth = canvasWidth * state.noteWidthRatio;
     let noteHeight = Math.min(canvasWidth, canvasHeight) / 55;
-    let noteOffset = (canvasWidth - noteWidth * state.columnNumber) / 2;
-
-    context.fillStyle = "rgb(0, 0, 0)";
-    context.fillRect(0, 0, canvasWidth, canvasHeight);
-
-
-    context.fillStyle = "rgb(25, 25, 25)";
-    context.fillRect(noteOffset, 0, noteWidth * state.columnNumber, canvasHeight);
+    let trackOffsetX = (canvasWidth - trackWidth * state.columnNumber) / 2;
+    let noteDuration = storageContext.config.noteDuration;
 
     {
         context.save();
+
+        context.fillStyle = "rgb(25, 25, 25)";
+        context.fillRect(trackOffsetX, 0, trackWidth * state.columnNumber, canvasHeight);
 
         let bottomFillHeight = canvasHeight * 0.13;
         let trackHeight = canvasHeight - bottomFillHeight;
@@ -90,8 +90,8 @@ function draw()
                     return;
 
                 let progress = 1 - ((o.time - matchTime) / noteDuration);
-                let noteX = noteOffset + o.column * noteWidth + 1;
-                let noteW = noteWidth - 2;
+                let noteX = trackOffsetX + o.column * trackWidth + 1;
+                let noteW = trackWidth - 2;
 
                 if (o.hold)
                 {
@@ -104,13 +104,16 @@ function draw()
 
                     if (holdLength >= 0)
                     {
+                        // hold body
                         context.fillStyle = "rgb(170, 212, 215)";
                         context.fillRect(noteX, holdEndY, noteW, noteHeight + holdLength);
 
+                        // hold start
                         context.fillStyle = "rgb(255, 255, 255)";
                         context.fillRect(noteX, holdStartY, noteW, noteHeight);
 
-                        context.fillStyle = "rgb(210, 170, 170)";
+                        // hold end
+                        context.fillStyle = "rgb(130, 160, 160)";
                         context.fillRect(noteX, holdEndY, noteW, noteHeight);
                     }
                 }
@@ -139,7 +142,7 @@ function draw()
         // 判定线与打击特效
         for (let i = 0; i < state.columnNumber; i++)
         {
-            let columnX = noteOffset + i * noteWidth;
+            let columnX = trackOffsetX + i * trackWidth;
 
             // 打击特效
             if (keyVisualEffect[i])
@@ -156,7 +159,7 @@ function draw()
 
                     context.fillStyle = gradient;
                     context.globalAlpha = (effect.endTime - now) * effect.ratio;
-                    context.fillRect(columnX, trackHeight - effectHeight - noteHeight / 2, noteWidth, effectHeight);
+                    context.fillRect(columnX, trackHeight - effectHeight - noteHeight / 2, trackWidth, effectHeight);
                     context.globalAlpha = 1;
                 }
                 else
@@ -168,7 +171,7 @@ function draw()
             // 判定线
             let lineWidth = (keyState[i] ? 7 : 2);
             context.fillStyle = (keyState[i] ? "rgb(230, 230, 230)" : "rgb(200, 200, 200)");
-            context.fillRect(columnX, trackHeight - noteHeight / 2 - lineWidth / 2, noteWidth, lineWidth);
+            context.fillRect(columnX, trackHeight - noteHeight / 2 - lineWidth / 2, trackWidth, lineWidth);
         }
 
         // 判定文本
@@ -282,13 +285,4 @@ export function showDecisionText(text, color)
         midTime: lastTime + 120,
         endTime: lastTime + 120 * 2
     };
-}
-
-/**
- * 
- * @param {number} duration
- */
-export function setNoteDuration(duration)
-{
-    noteDuration = duration;
 }

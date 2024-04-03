@@ -1,7 +1,5 @@
-import { setNoteDuration } from "./draw.js";
-
 import { getUrlSearchParam } from "./util.js";
-import { beatmapFileNameList, getBeatmapFileName, loadBeatmapPackage, playBeatmap, readBeatmapFile, setUserAudioLatency } from "./loadBeatmap.js";
+import { beatmapFileNameList, getBeatmapFileName, loadBeatmapPackage, playBeatmap, readBeatmapFile } from "./loadBeatmap.js";
 import { deciderState, waitForEnd } from "./decider.js";
 
 import { getNElement, NElement, NList } from "../lib/qwqframe.js";
@@ -12,6 +10,7 @@ import { setInputEnable } from "./input.js";
 import { clearState, state } from "./state.js";
 import { NTagName } from "../lib/qwqframe.js";
 import { NAttr } from "../lib/qwqframe.js";
+import { saveConfig, storageContext } from "./storage.js";
 
 
 
@@ -403,7 +402,7 @@ export async function showOptionPage()
 
                     ...speedList.map(o => [
                         new NTagName("option"),
-                        // (o == state ? new NAttr("selected", "true") : null),
+                        (o.duration == storageContext.config.noteDuration ? new NAttr("selected", "true") : null),
                         new NAttr("value", String(o.duration)),
                         `${o.speed}速 (${o.duration}ms)`
                     ])
@@ -418,7 +417,7 @@ export async function showOptionPage()
 
                     new NAttr("max", "1000"),
                     new NAttr("min", "-1000"),
-                    new NAttr("value", "0"),
+                    new NAttr("value", String(storageContext.config.userAudioLatency)),
 
                     styles({
                         padding: "5px",
@@ -470,15 +469,59 @@ export async function showOptionPage()
                     ui.remove();
 
                     let noteDuration = Number(speedSelect.element.value);
-                    setNoteDuration(noteDuration);
+                    storageContext.config.noteDuration = noteDuration;
 
                     let audioLatency = Number(audioLatencyInput.element.value);
                     if (!Number.isFinite(audioLatency))
                         audioLatency = 0;
                     audioLatency = Math.max(-1000, Math.min(1000, audioLatency));
-                    setUserAudioLatency(audioLatency);
+                    storageContext.config.userAudioLatency = audioLatency;
+
+                    saveConfig();
                 })
             ]
+        ]
+    ]);
+
+    getNElement(document.body).addChild(ui);
+}
+
+export function showSearchBeatmapPage()
+{
+    let ui = NList.getElement([
+        styles({
+            position: "absolute",
+            left: "0",
+            top: "0",
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(180, 220, 240, 0.5)",
+
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+
+            fontSize: "20px"
+        }),
+
+        [
+            styles({
+                padding: "20px",
+                backgroundColor: "rgb(180, 220, 240)",
+                border: "2px solid rgb(40, 40, 40)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "5px",
+                overflow: "auto",
+
+                maxHeight: "90%",
+                maxWidth: "90%"
+            }),
+
+
+            [
+                "搜索铺面"
+            ],
         ]
     ]);
 

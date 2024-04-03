@@ -15,8 +15,8 @@ let oldHeight = -1;
 function resizeCanvas()
 {
     let canvasRatio = window.devicePixelRatio;
-    let width = Math.round(canvasElement.clientWidth * canvasRatio);
-    let height = Math.round(canvasElement.clientHeight * canvasRatio);
+    let width = Math.floor(canvasElement.clientWidth * canvasRatio);
+    let height = Math.floor(canvasElement.clientHeight * canvasRatio);
     if (width != oldWidth || height != oldHeight || canvasRatio != state.canvasRatio)
     {
         state.canvasRatio = canvasRatio;
