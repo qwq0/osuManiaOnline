@@ -2,7 +2,7 @@ import { getUrlSearchParam } from "./util.js";
 import { beatmapFileNameList, getBeatmapFileName, loadBeatmapPackage, playBeatmap, readBeatmapFile } from "./loadBeatmap.js";
 import { deciderState, waitForEnd } from "./decider.js";
 
-import { getNElement, NElement, NList } from "../lib/qwqframe.js";
+import { bindValue, getNElement, NElement, NList } from "../lib/qwqframe.js";
 import { createNStyleList as styles } from "../lib/qwqframe.js";
 import { NEvent } from "../lib/qwqframe.js";
 import { delayPromise } from "../lib/qwqframe.js";
@@ -11,10 +11,12 @@ import { clearState, state } from "./state.js";
 import { NTagName } from "../lib/qwqframe.js";
 import { NAttr } from "../lib/qwqframe.js";
 import { saveConfig, storageContext } from "./storage.js";
+import { beatmapChangedEvent, gameStartEvent, playTogetherInfo, sendChangeBeatmapSignal, sendDeciderResult, sendHostDeciderResult, sendPlayTogetherInvite, sendReadySignal, sendStartGameSignal, showWaitingHostPage } from "./playTogether.js";
 
 
 
 /**
+ * 加载页
  * @param {string} beatmapUrl
  * @param {{
  *  bid?: string,
@@ -104,10 +106,12 @@ export async function loadAndShowLoadingPage(beatmapUrl, paramObj)
     catch (err)
     {
         textElement.setText(String(err));
+        console.error(err);
     }
 }
 
 /**
+ * 起始页
  * @param {string} beatmapFileName
  */
 export async function showStartPage(beatmapFileName)
@@ -129,7 +133,12 @@ export async function showStartPage(beatmapFileName)
     catch (err)
     {
         errorText = String(err);
+        console.error(err);
     }
+
+    /** @type {NElement} */
+    let coverLayer = null;
+
     let ui = NList.getElement([
         styles({
             position: "absolute",
@@ -181,6 +190,10 @@ export async function showStartPage(beatmapFileName)
                 ],
 
                 [
+                    `键位数: ${beatmapMeta.columnNumber}`
+                ],
+
+                [
                     `铺面id: ${beatmapMeta.meta.Metadata.BeatmapSetID} / ${beatmapMeta.meta.Metadata.BeatmapID}`
                 ],
             ] : [
@@ -200,6 +213,7 @@ export async function showStartPage(beatmapFileName)
                 "切换铺面: ",
                 [
                     new NTagName("select"),
+                    (playTogetherInfo.isClient ? new NAttr("disabled", "true") : undefined),
 
                     styles({
                         padding: "5px",
@@ -223,7 +237,7 @@ export async function showStartPage(beatmapFileName)
                 ]
             ],
 
-            [
+            (!playTogetherInfo.isClient ? [
                 "切换铺面集: ",
                 [
                     styles({
@@ -248,7 +262,9 @@ export async function showStartPage(beatmapFileName)
                         showSearchBeatmapPage();
                     })
                 ],
-            ],
+            ] : [
+                "正在派对中游戏"
+            ]),
 
             [
                 styles({
@@ -271,6 +287,7 @@ export async function showStartPage(beatmapFileName)
                     showOptionPage();
                 })
             ],
+
             [
                 styles({
                     padding: "8px",
@@ -286,9 +303,43 @@ export async function showStartPage(beatmapFileName)
                     cursor: "default"
                 }),
 
-                "准备",
-                new NEvent("click", () =>
+                (playTogetherInfo.isClient ? "准备" : "开始"),
+
+                new NEvent("click", async () =>
                 {
+                    if (playTogetherInfo.enable)
+                    {
+                        if (playTogetherInfo.isClient)
+                        {
+                            coverLayer = NList.getElement([
+                                styles({
+                                    position: "absolute",
+                                    left: "0",
+                                    top: "0",
+                                    width: "100%",
+                                    height: "100%",
+                                    backgroundColor: "rgba(180, 220, 240, 0.9)",
+
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    alignItems: "center",
+
+                                    fontSize: "20px"
+                                }),
+
+                                "正在等待主机开始游戏"
+                            ]);
+                            getNElement(document.body).addChild(coverLayer);
+
+                            sendReadySignal();
+
+                            await gameStartEvent.oncePromise();
+
+                            coverLayer.remove();
+                        }
+                        else
+                            sendStartGameSignal();
+                    }
                     ui.remove();
                     setTimeout(async () =>
                     {
@@ -305,13 +356,72 @@ export async function showStartPage(beatmapFileName)
                         }
                     }, 50);
                 })
-            ]
+            ],
+
+            ...((playTogetherInfo.enable && !playTogetherInfo.isClient) ? [
+                [
+                    styles({
+                        padding: "8px",
+                        paddingLeft: "40px",
+                        paddingRight: "40px",
+                        backgroundColor: "rgb(220, 220, 240)",
+                        border: "1px solid rgb(20, 20, 20)",
+
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+
+                        cursor: "default"
+                    }),
+
+                    "发送邀请",
+                    new NEvent("click", () =>
+                    {
+                        sendPlayTogetherInvite();
+                    })
+                ],
+                [
+                    styles({
+                        whiteSpace: "pre-wrap"
+                    }),
+                    bindValue(playTogetherInfo, "playerListInfo")
+                ]
+            ] : [])
         ]
     ]);
 
     getNElement(document.body).addChild(ui);
+
+    let nowSid = beatmapMeta.meta.Metadata.BeatmapSetID;
+    let nowBid = beatmapMeta.meta.Metadata.BeatmapID;
+
+    let changeBeatmap = () =>
+    {
+        ui.remove();
+        if (coverLayer)
+            coverLayer.remove();
+        gameStartEvent.removeAll();
+        loadAndShowLoadingPage(`https://txy1.sayobot.cn/beatmaps/download/mini/${playTogetherInfo.sid}`, { bid: playTogetherInfo.bid });
+    };
+
+    if ((nowSid != playTogetherInfo.sid || nowBid != playTogetherInfo.bid))
+    {
+        if (playTogetherInfo.isClient)
+            changeBeatmap();
+        else if (playTogetherInfo.enable)
+        {
+            playTogetherInfo.sid = nowSid;
+            playTogetherInfo.bid = nowBid;
+            sendChangeBeatmapSignal();
+        }
+    }
+
+    beatmapChangedEvent.addOnce(changeBeatmap);
 }
 
+/**
+ * 成绩页
+ */
 export function showDeciderResultsPage()
 {
     setInputEnable(false);
@@ -355,6 +465,14 @@ export function showDeciderResultsPage()
         else
             return { rank: "D", color: { r: 95, g: 95, b: 95 } };
     })(achievingRate);
+
+    let resultInfoList = [
+        `Max Combo: ${deciderState.maxCombo} / ${deciderState.noteCount}`,
+        `Perfect: ${deciderState.perfect + deciderState.holdEndPerfect} (${deciderState.perfect} + ${deciderState.holdEndPerfect})`,
+        `Great: ${deciderState.great + deciderState.holdEndGreat} (${deciderState.great} + ${deciderState.holdEndGreat})`,
+        `Good: ${deciderState.good}`,
+        `Miss: ${deciderState.miss + deciderState.holdEndMiss} (${deciderState.miss} + ${deciderState.holdEndMiss})`
+    ];
 
     let ui = NList.getElement([
         styles({
@@ -404,21 +522,9 @@ export function showDeciderResultsPage()
                 `${achievingRate.toFixed(4)}%`
             ],
 
-            [
-                `Max Combo: ${deciderState.maxCombo} / ${deciderState.noteCount}`
-            ],
-            [
-                `Perfect: ${deciderState.perfect + deciderState.holdEndPerfect} (${deciderState.perfect} + ${deciderState.holdEndPerfect})`
-            ],
-            [
-                `Great: ${deciderState.great + deciderState.holdEndGreat} (${deciderState.great} + ${deciderState.holdEndGreat})`
-            ],
-            [
-                `Good: ${deciderState.good}`
-            ],
-            [
-                `Miss: ${deciderState.miss + deciderState.holdEndMiss} (${deciderState.miss} + ${deciderState.holdEndMiss})`
-            ],
+            ...resultInfoList.map(o => ([
+                o
+            ])),
 
             [
                 styles({
@@ -442,15 +548,39 @@ export function showDeciderResultsPage()
                     clearState();
                     showStartPage(state.beatmapFileName);
                 })
-            ]
+            ],
+
+            (playTogetherInfo.enable ? [
+                styles({
+                    whiteSpace: "pre-wrap"
+                }),
+                bindValue(playTogetherInfo, "replyDeciderResult")
+            ] : null)
         ]
     ]);
 
     getNElement(document.body).addChild(ui);
+
+    if (playTogetherInfo.enable)
+    {
+        let resultText = ([
+            `${rank.rank} ${achievingRate.toFixed(4)}%`,
+            `hit: ${deciderState.noteCount - deciderState.miss} / ${deciderState.noteCount}`
+        ]).join(" | ");
+
+        if (!playTogetherInfo.isClient)
+        {
+            playTogetherInfo.hostDeciderResult = resultText;
+            sendHostDeciderResult();
+        }
+        else
+            sendDeciderResult(resultText);
+
+    }
 }
 
 /**
- * 
+ * 设置页
  */
 export async function showOptionPage()
 {
@@ -606,6 +736,9 @@ export async function showOptionPage()
     getNElement(document.body).addChild(ui);
 }
 
+/**
+ * 铺面搜索页
+ */
 export function showSearchBeatmapPage()
 {
     /**
@@ -694,7 +827,7 @@ export function showSearchBeatmapPage()
                     border: "1px solid rgb(0, 0, 0)",
                     backgroundColor: "rgba(255, 255, 255, 0.3)"
                 }),
-                
+
                 [
                     styles({
                         maxWidth: "100%"
@@ -716,7 +849,7 @@ export function showSearchBeatmapPage()
                 {
                     ui.remove();
                     let sid = o.sid;
-                    loadAndShowLoadingPage(`https://cmcc.sayobot.cn:25225/beatmaps/${(sid.length >= 5 ? sid.slice(0, -4) : "0")}/${sid.slice(-4)}/novideo`, {});
+                    loadAndShowLoadingPage(`https://txy1.sayobot.cn/beatmaps/download/mini/${sid}`, {});
                 })
             ]));
         });

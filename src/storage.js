@@ -10,11 +10,15 @@ export function readConfig()
 {
     try
     {
-        let config = JSON.parse(localStorage.getItem("omo_config"));
-        Object.entries(config).forEach(([key, value]) =>
+        let configJson = localStorage.getItem("omo_config");
+        if (configJson)
         {
-            storageContext.config[key] = value;
-        });
+            let config = JSON.parse(configJson);
+            Object.entries(config).forEach(([key, value]) =>
+            {
+                storageContext.config[key] = value;
+            });
+        }
     }
     catch (err)
     {

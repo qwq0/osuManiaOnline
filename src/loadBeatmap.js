@@ -30,7 +30,7 @@ async function getResponseProgress(response, progressChangeCB)
     let reader = response.body.getReader();
     let contentLength = Number(response.headers.get("content-length"));
 
-    let data = new Uint8Array(contentLength);
+    let buffer = [];
     let nowIndex = 0;
     while (true)
     {
@@ -39,10 +39,18 @@ async function getResponseProgress(response, progressChangeCB)
         if (done)
             break;
 
-        data.set(value, nowIndex);
+        buffer.push(value);
         nowIndex += value.byteLength;
         progressChangeCB(Math.min(0.999, nowIndex / contentLength));
     }
+
+    let data = new Uint8Array(nowIndex);
+    nowIndex = 0;
+    buffer.forEach(o =>
+    {
+        data.set(o, nowIndex);
+        nowIndex += o.byteLength;
+    });
 
     progressChangeCB(1);
 

@@ -95,7 +95,9 @@ function draw()
 
                 if (o.hold)
                 {
-                    let holdStartY = (o.holding ? trackHeight : progress * trackHeight) - noteHeight;
+                    let holdStartY = progress * trackHeight - noteHeight;
+                    if (o.holding)
+                        holdStartY = Math.min(holdStartY, trackHeight - noteHeight);
 
                     let holdEndProgress = 1 - ((o.endTime - matchTime) / noteDuration);
                     let holdEndY = holdEndProgress * trackHeight - noteHeight;

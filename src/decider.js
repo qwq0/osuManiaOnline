@@ -393,3 +393,35 @@ export function waitForEnd()
     }
     return deciderEndPromise;
 }
+
+export function autoPlay()
+{
+    setInterval(() =>
+    {
+        let matchTime = performance.now() - state.matchStartTime;
+        for (let column = 0; column < state.columnNumber; column++)
+        {
+            let holdEndTime = deciderHoldEndTimeList[column];
+            if (holdEndTime != undefined)
+            {
+                if (holdEndTime <= matchTime + 15)
+                {
+                    keyup(column);
+                }
+            }
+            else if (keyState[column])
+            {
+                keyup(column);
+            }
+
+            let nowNote = deciderQueueList[column][deciderPointerList[column]];
+            if (
+                nowNote &&
+                nowNote.time <= matchTime + 15
+            )
+            {
+                keydown(column);
+            }
+        }
+    }, 30);
+}
